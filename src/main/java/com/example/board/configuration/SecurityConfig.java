@@ -7,7 +7,6 @@ import com.example.board.exception.handler.CustomAccessDeniedHandler;
 import com.example.board.exception.handler.CustomAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.security.autoconfigure.web.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -87,7 +86,7 @@ public class SecurityConfig {
                                 "/boards",
                                 "/boards/*",
                                 "/boards/*/comments").permitAll()
-                        .requestMatchers(PathRequest.toH2Console()).permitAll() //h2 관련 경로 인증 불필요
+                        .requestMatchers("/h2-console/**").permitAll() //h2 관련 경로 인증 불필요
                         .requestMatchers("/admin/**").hasRole("ADMIN")        //추후 생길 ADMIN관련 경로는 ADMIN(ROLE_ADMIN)권한 필요
                         .anyRequest().authenticated()                           //나머지는 인증이 필ㅇ
                 )

@@ -1,0 +1,20 @@
+# Git 및 IDE 설정
+.git
+.gitattributes
+.idea
+*.iml
+
+# 로컬 빌드 결과와 Gradle 캐시
+.gradle
+build
+
+# 운영체제와 편집기 임시 파일
+.DS_Store
+*.log
+
+# 로컬 개발용 설정에는 JWT Secret 등이 들어갈 수 있으므로 이미지에 포함하지 않는다.
+src/main/resources/application.properties
+
+# Docker 이미지 생성에 필요하지 않은 문서와 설정
+Dockerfile
+HELP.md

@@ -10,7 +10,9 @@ RUN chmod +x gradlew
 
 # 소스가 변경되면 이 단계부터 다시 빌드한다.
 COPY src ./src
-RUN ./gradlew clean bootJar --no-daemon
+
+# 전체 테스트를 통과한 경우에만 Spring Boot 실행 JAR을 생성한다.
+RUN ./gradlew clean build --no-daemon
 
 # 실제 서버 실행에는 더 작은 JRE 이미지만 사용한다.
 FROM eclipse-temurin:21-jre-jammy

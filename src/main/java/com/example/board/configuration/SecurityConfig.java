@@ -73,6 +73,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/auth/signup",

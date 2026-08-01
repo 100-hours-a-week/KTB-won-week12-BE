@@ -19,8 +19,12 @@ FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
-# 컨테이너 내부에서 애플리케이션을 root 권한으로 실행하지 않는다.
-RUN groupadd --system spring \
+# Health Check 호출에 필요한 curl만 설치하고 패키지 목록은 제거한다.
+# 컨테이너 내부에서는 애플리케이션을 root 권한으로 실행하지 않는다.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system spring \
     && useradd --system --gid spring --no-create-home spring
 
 COPY --from=builder --chown=spring:spring /workspace/build/libs/app.jar ./app.jar

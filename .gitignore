@@ -39,3 +39,6 @@ out/
 ### properties ###
 /src/main/resources/application.properties
 src/main/resources/application.properties
+
+# EC2와 로컬 Docker Compose에서 사용하는 실제 DB/JWT 비밀값
+/.env

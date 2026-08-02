@@ -1,0 +1,65 @@
+services:
+  backend:
+    image: "${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME in .env}/board-backend:${BACKEND_TAG:-0.1.0}"
+    environment:
+      # 저사양 EC2에서 JVM이 사용할 힙 메모리 범위를 제한한다.
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+
+      # 과제 배포에서는 컨테이너가 재시작될 때 초기화되는 H2 인메모리 DB를 사용한다.
+      SPRING_DATASOURCE_URL: "jdbc:h2:mem:boarddb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: "org.h2.Driver"
+      SPRING_DATASOURCE_USERNAME: "sa"
+      SPRING_DATASOURCE_PASSWORD: ""
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "create-drop"
+      SPRING_SQL_INIT_MODE: "always"
+      SPRING_H2_CONSOLE_ENABLED: "false"
+
+      # JWT 설정은 이미지에 넣지 않고 EC2의 .env 파일에서 실행 시점에 주입한다.
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in .env}"
+      JWT_ACCESS_TOKEN_EXPIRATION: "${JWT_ACCESS_TOKEN_EXPIRATION:-30m}"
+      JWT_REFRESH_TOKEN_EXPIRATION: "${JWT_REFRESH_TOKEN_EXPIRATION:-30d}"
+
+      # 컨테이너 준비 상태 확인에는 상세 정보가 없는 Health 엔드포인트만 노출한다.
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "never"
+
+      # 운영 컨테이너에서는 개발 중 사용하던 상세 SQL 로그를 출력하지 않는다.
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_JDBC_CORE_JDBCTEMPLATE: "INFO"
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_JDBC_CORE_STATEMENTCREATORUTILS: "INFO"
+      LOGGING_LEVEL_ORG_HIBERNATE_SQL: "INFO"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - board-network
+
+  frontend:
+    image: "${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME in .env}/board-frontend:${FRONTEND_TAG:-0.1.0}"
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - board-network
+
+networks:
+  board-network:
+    driver: bridge

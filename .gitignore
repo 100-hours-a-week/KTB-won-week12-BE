@@ -42,3 +42,6 @@ src/main/resources/application.properties
 
 # EC2와 로컬 Docker Compose에서 사용하는 실제 DB/JWT 비밀값
 /.env
+
+# A/B 배포의 활성 슬롯, 이미지 태그, Nginx upstream을 보관하는 실행 시점 상태
+/runtime/

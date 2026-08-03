@@ -15,6 +15,7 @@ build
 # 로컬 개발용 설정에는 JWT Secret 등이 들어갈 수 있으므로 이미지에 포함하지 않는다.
 src/main/resources/application.properties
 .env
+runtime
 
 # Docker 이미지 생성에 필요하지 않은 문서와 설정
 Dockerfile

@@ -65,8 +65,8 @@ services:
     # 활성 A/B 슬롯은 배포 스크립트가 이 파일을 변경한 뒤 Nginx를 reload해 전환한다.
     volumes:
       - type: bind
-        source: ./runtime/nginx/active-backend.conf
-        target: /etc/nginx/runtime-upstreams/active-backend.conf
+        source: ./runtime/nginx
+        target: /etc/nginx/runtime-upstreams
         read_only: true
         bind:
           create_host_path: false

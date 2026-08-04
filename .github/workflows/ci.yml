@@ -82,6 +82,40 @@ jobs:
       id-token: write
 
     steps:
+      # AWS가 신뢰 정책과 비교하는 공개 Claim만 출력한다.
+      # JWT 원문과 서명은 출력하지 않으며, 인증 문제를 해결한 뒤 제거할 임시 진단 단계다.
+      - name: Inspect OIDC claims
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          oidc_response="$(curl --fail --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")"
+          oidc_token="$(jq -r '.value' <<< "${oidc_response}")"
+
+          OIDC_TOKEN="${oidc_token}" python3 - <<'PY'
+          import base64
+          import json
+          import os
+
+          token = os.environ["OIDC_TOKEN"]
+          payload = token.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+
+          safe_claims = {
+              "aud": claims.get("aud"),
+              "sub": claims.get("sub"),
+              "repository": claims.get("repository"),
+              "ref": claims.get("ref"),
+              "event_name": claims.get("event_name"),
+              "job_workflow_ref": claims.get("job_workflow_ref"),
+          }
+
+          print(json.dumps(safe_claims, indent=2))
+          PY
+
       - name: Configure AWS credentials with OIDC
         uses: aws-actions/configure-aws-credentials@v6
         with:

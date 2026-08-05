@@ -38,9 +38,9 @@ public class BoardModifyRecord {
         this.registDate = LocalDateTime.now();
     }
 
-    public static BoardModifyRecord create(Board board, String title, String content, List<String> imageUrls) {
+    public static BoardModifyRecord create(Board board, String title, String content, List<BoardImageKeys> images) {
         BoardModifyRecord modifyRecord = new BoardModifyRecord(board, title, content);
-        imageUrls.forEach(imageUrl -> modifyRecord.addBoardImage(new BoardImage(imageUrl, modifyRecord)));
+        images.forEach(imageKeys -> modifyRecord.addBoardImage(new BoardImage(imageKeys, modifyRecord)));
         return modifyRecord;
     }
 

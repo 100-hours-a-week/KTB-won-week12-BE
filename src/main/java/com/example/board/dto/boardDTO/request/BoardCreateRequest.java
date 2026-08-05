@@ -1,8 +1,11 @@
 package com.example.board.dto.boardDTO.request;
 
+import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.exception.errorMessage.BoardErrorMessage;
+import com.example.board.exception.errorMessage.ImageErrorMessage;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -15,13 +18,10 @@ public record BoardCreateRequest(
         @NotBlank(message = BoardErrorMessage.CONTENT_REQUIRED)
         String content,
 
-        List<
-                @NotBlank(message = BoardErrorMessage.IMAGE_URL_REQUIRED)
-                @Size(max = 2048, message = BoardErrorMessage.IMAGE_URL_LENGTH_LIMIT)
-                @Pattern(regexp = "^https?://.+", message = BoardErrorMessage.IMAGE_URL_INVALID)
-                String> imageUrls
+        @Size(max = 5, message = ImageErrorMessage.IMAGE_COUNT_LIMIT)
+        List<@NotNull @Valid BoardImageKeyRequest> images
 ) {
-    public List<String> safeImageUrls() {
-        return imageUrls == null ? List.of() : List.copyOf(imageUrls);
+    public List<BoardImageKeys> safeImages() {
+        return images == null ? List.of() : images.stream().map(BoardImageKeyRequest::toDomain).toList();
     }
 }

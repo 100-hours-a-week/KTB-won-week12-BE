@@ -12,6 +12,7 @@ import java.util.Optional;
 
 public interface BoardModifyRecordRepository extends JpaRepository<BoardModifyRecord, Long> {
 
+    @EntityGraph(attributePaths = "boardImage")
     @Query("""
             select record
             from BoardModifyRecord record

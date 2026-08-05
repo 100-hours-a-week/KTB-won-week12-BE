@@ -5,6 +5,8 @@ import com.example.board.domain.board.Board;
 import com.example.board.domain.board.BoardModifyRecord;
 import com.example.board.domain.board.BoardLikeRecord;
 import com.example.board.domain.board.BoardViewRecord;
+import com.example.board.domain.board.BoardImage;
+import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.domain.user.User;
 import com.example.board.dto.boardDTO.request.BoardCreateRequest;
 import com.example.board.dto.boardDTO.request.BoardUpdateRequest;
@@ -51,17 +53,21 @@ public class BoardService {
     private final BoardLikeRecordRepository boardLikeRecordRepository;
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
+    private final BoardImageStorageService boardImageStorageService;
 
     @Transactional
     public BoardCreateResponse createBoard(BoardCreateRequest request, CustomUserPrincipal principal) {
         User author = userRepository.findByIdAndIsDeletedFalse(principal.getUserId())
                 .orElseThrow(() -> new NotFoundException(ErrorCode.USER_NOT_FOUND));
 
+        List<BoardImageKeys> images = request.safeImages();
+        boardImageStorageService.validateOwnedImages(author.getId(), images);
+
         Board board = Board.create(
                 author,
                 request.title().trim(),
                 request.content().trim(),   //불필요한 공백 제거
-                request.safeImageUrls()
+                images
         );
 
         return BoardCreateResponse.from(boardRepository.save(board));
@@ -149,7 +155,7 @@ public class BoardService {
                 board.getId(),
                 latestRecord.getTitle(),
                 latestRecord.getContent(),
-                latestRecord.getBoardImage().stream().map(BoardImageResponse::from).toList(),
+                latestRecord.getBoardImage().stream().map(this::toImageResponse).toList(),
                 BoardAuthorResponse.from(board.getAuthor()),
                 firstRecord.getRegistDate(),
                 latestRecord.getRegistDate(),
@@ -167,11 +173,14 @@ public class BoardService {
             BoardUpdateRequest request,
             CustomUserPrincipal principal
     ) {
+        List<BoardImageKeys> images = request.safeImages();
+        boardImageStorageService.validateOwnedImages(principal.getUserId(), images);
+
         Board board = getOwnedBoardWithWriteLock(boardId, principal.getUserId());       //비관적 락을 이용한 게시글 수정
         board.addModifyRecord(
                 request.title().trim(),
                 request.content().trim(),
-                request.safeImageUrls()
+                images
         );
         return new BoardUpdateResponse(board.getId());
     }
@@ -259,7 +268,20 @@ public class BoardService {
                 createdAt,
                 board.getNumberOfLikes(),
                 commentCount,
-                board.getNumberOfViews()
+                board.getNumberOfViews(),
+                latestRecord.getBoardImage().stream()
+                        .findFirst()
+                        .map(BoardImage::getThumbnailObjectKey)
+                        .map(boardImageStorageService::createDownloadUrl)
+                        .orElse(null)
+        );
+    }
+
+    private BoardImageResponse toImageResponse(BoardImage image) {
+        return BoardImageResponse.from(
+                image,
+                boardImageStorageService.createDownloadUrl(image.getOriginalObjectKey()),
+                boardImageStorageService.createDownloadUrl(image.getThumbnailObjectKey())
         );
     }
 

@@ -43,10 +43,10 @@ public class Board {
         this.author = author;
     }
 
-    public static Board create(User author, String title, String content, List<String> imageUrls) {
+    public static Board create(User author, String title, String content, List<BoardImageKeys> images) {
         Board board = new Board(author);
         author.addBoard(board);
-        board.addModifyRecord(title, content, imageUrls);
+        board.addModifyRecord(title, content, images);
         return board;
     }
 
@@ -68,8 +68,8 @@ public class Board {
         this.numberOfViews++;
     }
 
-    public void addModifyRecord(String title, String content, List<String> imageUrls) {
-        this.boardModifyRecords.add(BoardModifyRecord.create(this, title, content, imageUrls));
+    public void addModifyRecord(String title, String content, List<BoardImageKeys> images) {
+        this.boardModifyRecords.add(BoardModifyRecord.create(this, title, content, images));
     }
 
     public void addBoardViewRecord(BoardViewRecord boardViewRecord) {

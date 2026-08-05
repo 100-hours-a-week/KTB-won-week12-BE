@@ -16,6 +16,12 @@ x-backend-common: &backend-common
     SPRING_FLYWAY_BASELINE_ON_MIGRATE: "${FLYWAY_BASELINE_ON_MIGRATE:-false}"
     SPRING_FLYWAY_BASELINE_VERSION: "1"
 
+    # S3 접근 자격 증명은 EC2 Instance Profile에서 얻고 버킷과 리전만 환경변수로 주입한다.
+    STORAGE_S3_BUCKET: "${S3_BUCKET:?Set S3_BUCKET in .env}"
+    STORAGE_S3_REGION: "${AWS_REGION:-ap-northeast-2}"
+    STORAGE_S3_UPLOAD_URL_EXPIRATION: "5m"
+    STORAGE_S3_DOWNLOAD_URL_EXPIRATION: "1h"
+
     # JWT 설정은 이미지에 넣지 않고 EC2의 .env 파일에서 실행 시점에 주입한다.
     JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in .env}"
     JWT_ACCESS_TOKEN_EXPIRATION: "${JWT_ACCESS_TOKEN_EXPIRATION:-30m}"

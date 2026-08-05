@@ -3,12 +3,14 @@ package com.example.board.controller;
 import com.example.board.configuration.jwt.JwtTokenProvider;
 import com.example.board.domain.board.Board;
 import com.example.board.domain.board.BoardModifyRecord;
+import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.domain.user.User;
 import com.example.board.domain.user.UserRole;
 import com.example.board.repository.BoardRepository;
 import com.example.board.repository.BoardViewRecordRepository;
 import com.example.board.repository.UserRepository;
 import com.example.board.service.BoardService;
+import com.example.board.service.BoardImageStorageService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.Hibernate;
@@ -25,9 +27,12 @@ import org.springframework.http.MediaType;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -67,6 +72,9 @@ class BoardApiIntegrationTest {
     @Autowired
     private BoardService boardService;
 
+    @MockitoBean
+    private BoardImageStorageService boardImageStorageService;
+
     private User author;
 
     @BeforeEach
@@ -80,6 +88,8 @@ class BoardApiIntegrationTest {
                 UserRole.USER,
                 "https://example.com/profile.png"
         ));
+        when(boardImageStorageService.createDownloadUrl(anyString()))
+                .thenAnswer(invocation -> "https://download.example/" + invocation.getArgument(0));
     }
 
     @Test
@@ -92,12 +102,18 @@ class BoardApiIntegrationTest {
                                 {
                                   "title": "첫 게시글",
                                   "content": "게시글 내용입니다.",
-                                  "imageUrls": [
-                                    "https://example.com/image-1.png",
-                                    "https://example.com/image-2.png"
+                                  "images": [
+                                    {
+                                      "originalObjectKey": "boards/%d/11111111-1111-1111-1111-111111111111/original.png",
+                                      "thumbnailObjectKey": "boards/%d/11111111-1111-1111-1111-111111111111/thumbnail.webp"
+                                    },
+                                    {
+                                      "originalObjectKey": "boards/%d/22222222-2222-2222-2222-222222222222/original.jpg",
+                                      "thumbnailObjectKey": "boards/%d/22222222-2222-2222-2222-222222222222/thumbnail.webp"
+                                    }
                                   ]
                                 }
-                                """))
+                                """.formatted(author.getId(), author.getId(), author.getId(), author.getId())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value("BOARD_CREATED"))
                 .andExpect(jsonPath("$.data.boardId").isNumber());
@@ -109,10 +125,10 @@ class BoardApiIntegrationTest {
         assertThat(initialHistory.getTitle()).isEqualTo("첫 게시글");
         assertThat(initialHistory.getContent()).isEqualTo("게시글 내용입니다.");
         assertThat(initialHistory.getBoardImage())
-                .extracting(image -> image.getImageUrl())
+                .extracting(image -> image.getOriginalObjectKey())
                 .containsExactly(
-                        "https://example.com/image-1.png",
-                        "https://example.com/image-2.png"
+                        "boards/" + author.getId() + "/11111111-1111-1111-1111-111111111111/original.png",
+                        "boards/" + author.getId() + "/22222222-2222-2222-2222-222222222222/original.jpg"
                 );
     }
 
@@ -140,7 +156,7 @@ class BoardApiIntegrationTest {
                                 {
                                   "title": "스물 여섯 자를 초과하는 게시글 제목은 서버에서 검증되어야합니다",
                                   "content": "게시글 내용입니다.",
-                                  "imageUrls": ["not-a-url"]
+                                  "images": []
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -180,6 +196,22 @@ class BoardApiIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].boardId").value(first.getId()))
                 .andExpect(jsonPath("$.data.content[0].title").value("첫 번째 게시글"))
                 .andExpect(jsonPath("$.data.hasNext").value(false));
+    }
+
+    @Test
+    @DisplayName("게시글 목록은 최신 수정 이력의 첫 번째 이미지에 대한 썸네일 URL을 반환한다.")
+    void boardListReturnsFirstThumbnailUrl() throws Exception {
+        Board board = saveBoard(
+                "이미지 게시글",
+                java.util.List.of(imageKeys("66666666-6666-6666-6666-666666666666", "png"))
+        );
+
+        mockMvc.perform(get("/boards"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].boardId").value(board.getId()))
+                .andExpect(jsonPath("$.data.content[0].thumbnailImageUrl")
+                        .value("https://download.example/boards/" + author.getId()
+                                + "/66666666-6666-6666-6666-666666666666/thumbnail.webp"));
     }
 
     @Test
@@ -230,9 +262,18 @@ class BoardApiIntegrationTest {
     @Test
     @DisplayName("게시글 수가 증가해도 목록 조회 쿼리 수는 일정하다.")
     void boardListQueryCountDoesNotGrowPerBoard() {
-        saveBoard("첫 번째 게시글");
-        saveBoard("두 번째 게시글");
-        saveBoard("세 번째 게시글");
+        saveBoard(
+                "첫 번째 게시글",
+                java.util.List.of(imageKeys("77777777-7777-7777-7777-777777777777", "png"))
+        );
+        saveBoard(
+                "두 번째 게시글",
+                java.util.List.of(imageKeys("88888888-8888-8888-8888-888888888888", "jpg"))
+        );
+        saveBoard(
+                "세 번째 게시글",
+                java.util.List.of(imageKeys("99999999-9999-9999-9999-999999999999", "webp"))
+        );
         entityManager.flush();
         entityManager.clear();
 
@@ -256,7 +297,7 @@ class BoardApiIntegrationTest {
                 author,
                 "상세 게시글",
                 "상세 게시글 내용",
-                java.util.List.of("https://example.com/detail.png")
+                java.util.List.of(imageKeys("33333333-3333-3333-3333-333333333333", "png"))
         ));
 
         mockMvc.perform(get("/boards/{boardId}", board.getId())
@@ -264,8 +305,9 @@ class BoardApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("BOARD_DETAIL"))
                 .andExpect(jsonPath("$.data.title").value("상세 게시글"))
-                .andExpect(jsonPath("$.data.images[0].imageUrl")
-                        .value("https://example.com/detail.png"))
+                .andExpect(jsonPath("$.data.images[0].originalImageUrl")
+                        .value("https://download.example/boards/" + author.getId()
+                                + "/33333333-3333-3333-3333-333333333333/original.png"))
                 .andExpect(jsonPath("$.data.viewCount").value(1))
                 .andExpect(jsonPath("$.data.editableByMe").value(true));
 
@@ -296,7 +338,7 @@ class BoardApiIntegrationTest {
                 author,
                 "수정 전 제목",
                 "수정 전 내용",
-                java.util.List.of("https://example.com/before.png")
+                java.util.List.of(imageKeys("44444444-4444-4444-4444-444444444444", "png"))
         ));
 
         mockMvc.perform(patch("/boards/{boardId}", board.getId())
@@ -306,9 +348,14 @@ class BoardApiIntegrationTest {
                                 {
                                   "title": "수정 후 제목",
                                   "content": "수정 후 내용",
-                                  "imageUrls": ["https://example.com/after.png"]
+                                  "images": [
+                                    {
+                                      "originalObjectKey": "boards/%d/55555555-5555-5555-5555-555555555555/original.png",
+                                      "thumbnailObjectKey": "boards/%d/55555555-5555-5555-5555-555555555555/thumbnail.webp"
+                                    }
+                                  ]
                                 }
-                                """))
+                                """.formatted(author.getId(), author.getId())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("BOARD_UPDATED"))
                 .andExpect(jsonPath("$.data.boardId").value(board.getId()));
@@ -321,8 +368,9 @@ class BoardApiIntegrationTest {
         assertThat(updatedBoard.getBoardModifyRecords().getFirst().getTitle()).isEqualTo("수정 전 제목");
         assertThat(updatedBoard.getBoardModifyRecords().getLast().getTitle()).isEqualTo("수정 후 제목");
         assertThat(updatedBoard.getBoardModifyRecords().getLast().getBoardImage())
-                .extracting(image -> image.getImageUrl())
-                .containsExactly("https://example.com/after.png");
+                .extracting(image -> image.getOriginalObjectKey())
+                .containsExactly("boards/" + author.getId()
+                        + "/55555555-5555-5555-5555-555555555555/original.png");
     }
 
     @Test
@@ -388,12 +436,24 @@ class BoardApiIntegrationTest {
     }
 
     private Board saveBoard(String title) {
+        return saveBoard(title, java.util.List.of());
+    }
+
+    private Board saveBoard(String title, java.util.List<BoardImageKeys> images) {
         return boardRepository.saveAndFlush(Board.create(
                 author,
                 title,
                 title + " 내용",
-                java.util.List.of()
+                images
         ));
+    }
+
+    private BoardImageKeys imageKeys(String groupId, String originalExtension) {
+        String baseKey = "boards/" + author.getId() + "/" + groupId + "/";
+        return new BoardImageKeys(
+                baseKey + "original." + originalExtension,
+                baseKey + "thumbnail.webp"
+        );
     }
 
     private String bearerToken() {

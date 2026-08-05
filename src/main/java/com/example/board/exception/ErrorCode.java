@@ -5,6 +5,7 @@ import com.example.board.exception.errorMessage.BoardErrorMessage;
 import com.example.board.exception.errorMessage.CommentErrorMessage;
 import com.example.board.exception.errorMessage.CommonErrorMessage;
 import com.example.board.exception.errorMessage.UserErrorMessage;
+import com.example.board.exception.errorMessage.ImageErrorMessage;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -45,9 +46,18 @@ public enum ErrorCode {
     BOARD_TITLE_REQUIRED(HttpStatus.BAD_REQUEST, BoardErrorMessage.TITLE_REQUIRED),
     BOARD_TITLE_LENGTH_LIMIT(HttpStatus.BAD_REQUEST, BoardErrorMessage.TITLE_LENGTH_LIMIT),
     BOARD_CONTENT_REQUIRED(HttpStatus.BAD_REQUEST, BoardErrorMessage.CONTENT_REQUIRED),
-    BOARD_IMAGE_URL_REQUIRED(HttpStatus.BAD_REQUEST, BoardErrorMessage.IMAGE_URL_REQUIRED),
-    BOARD_IMAGE_URL_LENGTH_LIMIT(HttpStatus.BAD_REQUEST, BoardErrorMessage.IMAGE_URL_LENGTH_LIMIT),
-    BOARD_IMAGE_URL_INVALID(HttpStatus.BAD_REQUEST, BoardErrorMessage.IMAGE_URL_INVALID),
+    BOARD_IMAGE_COUNT_LIMIT(HttpStatus.BAD_REQUEST, ImageErrorMessage.IMAGE_COUNT_LIMIT),
+    IMAGE_FILE_NAME_REQUIRED(HttpStatus.BAD_REQUEST, ImageErrorMessage.FILE_NAME_REQUIRED),
+    IMAGE_FILE_NAME_LENGTH_LIMIT(HttpStatus.BAD_REQUEST, ImageErrorMessage.FILE_NAME_LENGTH_LIMIT),
+    IMAGE_CONTENT_TYPE_INVALID(HttpStatus.BAD_REQUEST, ImageErrorMessage.CONTENT_TYPE_INVALID),
+    IMAGE_ORIGINAL_SIZE_INVALID(HttpStatus.BAD_REQUEST, ImageErrorMessage.ORIGINAL_SIZE_INVALID),
+    IMAGE_THUMBNAIL_TYPE_INVALID(HttpStatus.BAD_REQUEST, ImageErrorMessage.THUMBNAIL_TYPE_INVALID),
+    IMAGE_THUMBNAIL_SIZE_INVALID(HttpStatus.BAD_REQUEST, ImageErrorMessage.THUMBNAIL_SIZE_INVALID),
+    IMAGE_OBJECT_KEY_REQUIRED(HttpStatus.BAD_REQUEST, ImageErrorMessage.OBJECT_KEY_REQUIRED),
+    IMAGE_OBJECT_KEY_LENGTH_LIMIT(HttpStatus.BAD_REQUEST, ImageErrorMessage.OBJECT_KEY_LENGTH_LIMIT),
+    IMAGE_OBJECT_KEY_INVALID(HttpStatus.BAD_REQUEST, ImageErrorMessage.OBJECT_KEY_INVALID),
+    IMAGE_OBJECT_NOT_FOUND(HttpStatus.BAD_REQUEST, ImageErrorMessage.OBJECT_NOT_FOUND),
+    IMAGE_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, ImageErrorMessage.STORAGE_UNAVAILABLE),
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, BoardErrorMessage.BOARD_NOT_FOUND),
     BOARD_CURSOR_INVALID(HttpStatus.BAD_REQUEST, BoardErrorMessage.CURSOR_INVALID),
     BOARD_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, BoardErrorMessage.PAGE_SIZE_INVALID),

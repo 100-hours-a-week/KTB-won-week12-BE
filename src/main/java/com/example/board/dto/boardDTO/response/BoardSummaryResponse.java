@@ -9,6 +9,7 @@ public record BoardSummaryResponse(
         LocalDateTime createdAt,
         int likeCount,
         long commentCount,
-        int viewCount
+        int viewCount,
+        String thumbnailImageUrl
 ) {
 }

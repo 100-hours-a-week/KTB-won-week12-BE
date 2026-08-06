@@ -27,9 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BoardImageStorageServiceTest {
@@ -59,8 +57,8 @@ class BoardImageStorageServiceTest {
     @Test
     @DisplayName("원본과 썸네일용 Presigned PUT URL 및 사용자 소유 Object Key를 발급한다.")
     void createsUploadUrlsForOriginalAndThumbnail() throws Exception {
-        PresignedPutObjectRequest originalRequest = org.mockito.Mockito.mock(PresignedPutObjectRequest.class);
-        PresignedPutObjectRequest thumbnailRequest = org.mockito.Mockito.mock(PresignedPutObjectRequest.class);
+        PresignedPutObjectRequest originalRequest = mock(PresignedPutObjectRequest.class);
+        PresignedPutObjectRequest thumbnailRequest = mock(PresignedPutObjectRequest.class);
         when(originalRequest.url()).thenReturn(URI.create("https://s3.example/original").toURL());
         when(thumbnailRequest.url()).thenReturn(URI.create("https://s3.example/thumbnail").toURL());
         when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))

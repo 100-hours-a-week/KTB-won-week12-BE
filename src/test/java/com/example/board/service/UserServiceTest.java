@@ -16,6 +16,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -23,6 +26,9 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ProfileImageStorageService profileImageStorageService;
 
     @InjectMocks
     private UserService userService;
@@ -32,17 +38,40 @@ class UserServiceTest {
     void currentNicknameCanBeKeptWhenOnlyProfileImageChanges() {
         User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER);
         // 회원정보 수정 테스트는 회원가입 이후 기존 프로필이 등록된 상태를 별도로 구성
-        user.changeProfileImage("old-image");
+        user.changeProfileImageObjectKey("profiles/1/old/original.png");
         CustomUserPrincipal principal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
-        UserInfoModifyRequest request = new UserInfoModifyRequest("사과", "new-image");
+        String newObjectKey = "profiles/1/11111111-1111-1111-1111-111111111111/original.png";
+        UserInfoModifyRequest request = new UserInfoModifyRequest("사과", newObjectKey);
 
         when(userRepository.existsByNicknameAndIdNotAndIsDeletedFalse("사과", 1L)).thenReturn(false);
         when(userRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(user));
 
         UserInfoModifyResponse response = userService.modifyUserInfo(request, principal);
 
+        verify(profileImageStorageService).validateOwnedProfileImage(1L, newObjectKey);
         assertThat(response.getNickname()).isEqualTo("사과");
-        assertThat(response.getProfileImage()).isEqualTo("new-image");
+        assertThat(response.getProfileImage()).isEqualTo(newObjectKey);
+    }
+
+    @Test
+    @DisplayName("프로필 Object Key를 null로 수정하면 기존 프로필을 제거한다.")
+    void nullProfileImageObjectKeyRemovesCurrentProfile() {
+        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER);
+        user.changeProfileImageObjectKey("profiles/1/old/original.png");
+        CustomUserPrincipal principal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
+
+        when(userRepository.existsByNicknameAndIdNotAndIsDeletedFalse("사과", 1L)).thenReturn(false);
+        when(userRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(user));
+
+        UserInfoModifyResponse response = userService.modifyUserInfo(
+                new UserInfoModifyRequest("사과", null),
+                principal
+        );
+
+        // 제거 요청은 조회할 S3 객체가 없으므로 저장소 검증을 건너뛴다.
+        verify(profileImageStorageService, never()).validateOwnedProfileImage(any(), any());
+        assertThat(user.getProfileImageObjectKey()).isNull();
+        assertThat(response.getProfileImage()).isNull();
     }
 
     @Test

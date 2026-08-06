@@ -4,6 +4,7 @@ import com.example.board.configuration.jwt.JwtTokenProvider;
 import com.example.board.domain.user.User;
 import com.example.board.domain.user.UserRole;
 import com.example.board.repository.UserRepository;
+import com.example.board.service.ProfileImageStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,11 +16,15 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,6 +46,9 @@ class AuthUserApiIntegrationTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private ProfileImageStorageService profileImageStorageService;
 
     private User user;
 
@@ -140,7 +148,7 @@ class AuthUserApiIntegrationTest {
         // 프로필 이미지는 로그인 후 회원정보 수정 API에서만 등록한다.
         User signedUpUser = userRepository.findByEmailAndIsDeletedFalse("new-user@naver.com")
                 .orElseThrow();
-        assertThat(signedUpUser.getProfileImage()).isNull();
+        assertThat(signedUpUser.getProfileImageObjectKey()).isNull();
     }
 
     @Test
@@ -170,6 +178,57 @@ class AuthUserApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value("apple@naver.com"))
                 .andExpect(jsonPath("$.data.nickname").value("사과"));
+    }
+
+    @Test
+    @DisplayName("회원정보 수정 시 검증된 프로필 Object Key를 저장한다.")
+    void updateMyProfileImageObjectKey() throws Exception {
+        String objectKey = "profiles/" + user.getId()
+                + "/11111111-1111-1111-1111-111111111111/original.png";
+
+        mockMvc.perform(patch("/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "nickname": "사과",
+                                  "profileImageObjectKey": "%s"
+                                }
+                                """.formatted(objectKey)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("USER_UPDATE"))
+                .andExpect(jsonPath("$.data.profileImage").value(objectKey));
+
+        // 서비스 검증을 통과한 Key만 영속 상태의 사용자에게 반영되어야 한다.
+        verify(profileImageStorageService).validateOwnedProfileImage(user.getId(), objectKey);
+        assertThat(userRepository.findById(user.getId()).orElseThrow()
+                .getProfileImageObjectKey()).isEqualTo(objectKey);
+    }
+
+    @Test
+    @DisplayName("회원정보 수정에서 프로필 Object Key가 null이면 기존 프로필을 제거한다.")
+    void removeMyProfileImage() throws Exception {
+        user.changeProfileImageObjectKey(
+                "profiles/" + user.getId()
+                        + "/11111111-1111-1111-1111-111111111111/original.png"
+        );
+        userRepository.flush();
+
+        mockMvc.perform(patch("/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "nickname": "사과",
+                                  "profileImageObjectKey": null
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profileImage").doesNotExist());
+
+        verify(profileImageStorageService, never()).validateOwnedProfileImage(user.getId(), null);
+        assertThat(userRepository.findById(user.getId()).orElseThrow()
+                .getProfileImageObjectKey()).isNull();
     }
 
     @Test

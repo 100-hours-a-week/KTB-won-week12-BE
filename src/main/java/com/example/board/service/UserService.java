@@ -21,6 +21,7 @@ import java.util.Optional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final ProfileImageStorageService profileImageStorageService;
     public UserInfoResponse getUserInfo(CustomUserPrincipal principal){
         Long userId = principal.getUserId();
 
@@ -38,7 +39,7 @@ public class UserService {
         Long userId = principal.getUserId();
 
         String newNickname = userInfoModifyRequest.getNickname();
-        String newProfileImage = userInfoModifyRequest.getProfileImage();
+        String newProfileImageObjectKey = userInfoModifyRequest.getProfileImageObjectKey();
 
         if(userRepository.existsByNicknameAndIdNotAndIsDeletedFalse(newNickname, userId)){   //다른 사용자의 닉네임과 중복 체크
             throw new ConflictException(ErrorCode.NICKNAME_ALREADY_EXISTS);
@@ -49,8 +50,14 @@ public class UserService {
                 () -> new NotFoundException(ErrorCode.USER_NOT_FOUND)
         );
 
+        if (newProfileImageObjectKey != null) {
+            // DB에 저장하기 전에 현재 사용자 소유 경로와 실제 S3 객체 메타데이터를 모두 확인한다.
+            profileImageStorageService.validateOwnedProfileImage(userId, newProfileImageObjectKey);
+        }
+
         modifyTargetUser.changeNickname(newNickname);
-        modifyTargetUser.changeProfileImage(newProfileImage);   //더티체킹으로 update쿼리 자동 전송
+        // null은 프로필 제거를 의미하며, 값이 있으면 검증된 Object Key로 교체한다.
+        modifyTargetUser.changeProfileImageObjectKey(newProfileImageObjectKey);
 
         return UserInfoModifyResponse.from(modifyTargetUser);
     }

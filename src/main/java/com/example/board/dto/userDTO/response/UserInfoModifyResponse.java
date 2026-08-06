@@ -11,6 +11,6 @@ public class UserInfoModifyResponse {
     private final String profileImage;
 
     public static UserInfoModifyResponse from(User user){
-        return new UserInfoModifyResponse(user.getNickname(), user.getProfileImage());
+        return new UserInfoModifyResponse(user.getNickname(), user.getProfileImageObjectKey());
     }
 }

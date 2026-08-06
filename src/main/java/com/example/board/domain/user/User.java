@@ -27,9 +27,9 @@ public class User {
     private UserRole userRole;  //사용자 권한 구분(사용자, 어드민)
     private Boolean isDeleted;  //사용자 탈퇴 여부(소프트 delete)
     private String deleteReason; //사용자 탈퇴 사유
-    // API 계약 변경 전까지 Java 필드명은 유지하고 DB에는 만료되지 않는 S3 Object Key를 저장한다.
+    // 만료되는 조회 URL이 아니라 S3 객체를 영구 식별하는 Object Key를 저장한다.
     @Column(name = "profile_image_object_key", length = 512)
-    private String profileImage;
+    private String profileImageObjectKey;
     @OneToMany(mappedBy = "author")
     private List<Board> boardList = new ArrayList<>();
 
@@ -58,7 +58,7 @@ public class User {
         this.isDeleted = false;
         this.deleteReason = "";
         // 회원가입 시에는 프로필 이미지를 받지 않고 로그인 후 별도 수정 흐름에서만 설정
-        this.profileImage = null;
+        this.profileImageObjectKey = null;
     }
 
     public void changeNickname(String nickname){
@@ -70,8 +70,8 @@ public class User {
         this.password = encodedPassword;
     }
 
-    public void changeProfileImage(String profileImage){
-        this.profileImage = profileImage;
+    public void changeProfileImageObjectKey(String profileImageObjectKey){
+        this.profileImageObjectKey = profileImageObjectKey;
     }
 
     public void deleteUser(String deleteReason){

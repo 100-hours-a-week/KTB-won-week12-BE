@@ -14,6 +14,6 @@ public class UserInfoResponse {
     public static UserInfoResponse from(User user){
         return new UserInfoResponse(user.getEmail(),
                 user.getNickname(),
-                user.getProfileImage());
+                user.getProfileImageObjectKey());
     }
 }

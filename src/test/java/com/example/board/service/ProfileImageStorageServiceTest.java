@@ -11,6 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -30,6 +34,9 @@ import static org.mockito.Mockito.when;
 class ProfileImageStorageServiceTest {
 
     @Mock
+    private S3Client s3Client;
+
+    @Mock
     private S3Presigner s3Presigner;
 
     private ProfileImageStorageService service;
@@ -37,6 +44,7 @@ class ProfileImageStorageServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProfileImageStorageService(
+                s3Client,
                 s3Presigner,
                 new S3Properties(
                         "test-bucket",
@@ -124,5 +132,66 @@ class ProfileImageStorageServiceTest {
                 .isInstanceOf(BadRequestException.class)
                 .extracting(exception -> ((BadRequestException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.IMAGE_FILE_NAME_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("현재 사용자 프로필 Key의 실제 S3 객체와 메타데이터를 검증한다.")
+    void validatesOwnedStoredProfileImage() {
+        String objectKey = profileObjectKey(15L, "png");
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder()
+                        .contentType("image/png")
+                        .contentLength(1024L)
+                        .build());
+
+        service.validateOwnedProfileImage(15L, objectKey);
+
+        verify(s3Client).headObject(any(HeadObjectRequest.class));
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 프로필 Object Key는 S3 조회 전에 거부한다.")
+    void rejectsAnotherUsersProfileObjectKey() {
+        assertThatThrownBy(() ->
+                service.validateOwnedProfileImage(15L, profileObjectKey(99L, "png")))
+                .isInstanceOf(BadRequestException.class)
+                .extracting(exception -> ((BadRequestException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IMAGE_OBJECT_KEY_INVALID);
+
+        verify(s3Client, never()).headObject(any(HeadObjectRequest.class));
+    }
+
+    @Test
+    @DisplayName("프로필 Object Key 확장자와 S3 MIME 타입이 다르면 거부한다.")
+    void rejectsContentTypeThatDoesNotMatchObjectKeyExtension() {
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder()
+                        .contentType("image/jpeg")
+                        .contentLength(1024L)
+                        .build());
+
+        assertThatThrownBy(() ->
+                service.validateOwnedProfileImage(15L, profileObjectKey(15L, "png")))
+                .isInstanceOf(BadRequestException.class)
+                .extracting(exception -> ((BadRequestException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IMAGE_OBJECT_KEY_INVALID);
+    }
+
+    @Test
+    @DisplayName("업로드가 완료되지 않아 S3 프로필 객체가 없으면 저장하지 않는다.")
+    void rejectsMissingProfileObject() {
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenThrow(S3Exception.builder().statusCode(404).message("Not Found").build());
+
+        assertThatThrownBy(() ->
+                service.validateOwnedProfileImage(15L, profileObjectKey(15L, "png")))
+                .isInstanceOf(BadRequestException.class)
+                .extracting(exception -> ((BadRequestException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IMAGE_OBJECT_NOT_FOUND);
+    }
+
+    private String profileObjectKey(Long userId, String extension) {
+        return "profiles/" + userId
+                + "/11111111-1111-1111-1111-111111111111/original." + extension;
     }
 }

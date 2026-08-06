@@ -106,7 +106,7 @@ class AuthServiceTest {
         assertThat(authService.signup(signupRequest).getEmail()).isEqualTo(newUser.getEmail());
         assertThat(authService.signup(signupRequest).getNickname()).isEqualTo(newUser.getNickname());
         // 회원가입에서는 프로필 이미지를 입력받지 않으므로 저장 대상 사용자도 Object Key가 없어야 함
-        verify(userRepository, times(2)).save(argThat(user -> user.getProfileImage() == null));
+        verify(userRepository, times(2)).save(argThat(user -> user.getProfileImageObjectKey() == null));
     }
 
     @Test

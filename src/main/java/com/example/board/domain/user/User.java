@@ -27,7 +27,9 @@ public class User {
     private UserRole userRole;  //사용자 권한 구분(사용자, 어드민)
     private Boolean isDeleted;  //사용자 탈퇴 여부(소프트 delete)
     private String deleteReason; //사용자 탈퇴 사유
-    private String profileImage; //프로필 이미지
+    // API 계약 변경 전까지 Java 필드명은 유지하고 DB에는 만료되지 않는 S3 Object Key를 저장한다.
+    @Column(name = "profile_image_object_key", length = 512)
+    private String profileImage;
     @OneToMany(mappedBy = "author")
     private List<Board> boardList = new ArrayList<>();
 

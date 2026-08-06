@@ -30,6 +30,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -203,7 +205,7 @@ class BoardApiIntegrationTest {
     void boardListReturnsFirstThumbnailUrl() throws Exception {
         Board board = saveBoard(
                 "이미지 게시글",
-                java.util.List.of(imageKeys("66666666-6666-6666-6666-666666666666", "png"))
+                List.of(imageKeys("66666666-6666-6666-6666-666666666666", "png"))
         );
 
         mockMvc.perform(get("/boards"))
@@ -264,15 +266,15 @@ class BoardApiIntegrationTest {
     void boardListQueryCountDoesNotGrowPerBoard() {
         saveBoard(
                 "첫 번째 게시글",
-                java.util.List.of(imageKeys("77777777-7777-7777-7777-777777777777", "png"))
+                List.of(imageKeys("77777777-7777-7777-7777-777777777777", "png"))
         );
         saveBoard(
                 "두 번째 게시글",
-                java.util.List.of(imageKeys("88888888-8888-8888-8888-888888888888", "jpg"))
+                List.of(imageKeys("88888888-8888-8888-8888-888888888888", "jpg"))
         );
         saveBoard(
                 "세 번째 게시글",
-                java.util.List.of(imageKeys("99999999-9999-9999-9999-999999999999", "webp"))
+                List.of(imageKeys("99999999-9999-9999-9999-999999999999", "webp"))
         );
         entityManager.flush();
         entityManager.clear();
@@ -297,7 +299,7 @@ class BoardApiIntegrationTest {
                 author,
                 "상세 게시글",
                 "상세 게시글 내용",
-                java.util.List.of(imageKeys("33333333-3333-3333-3333-333333333333", "png"))
+                List.of(imageKeys("33333333-3333-3333-3333-333333333333", "png"))
         ));
 
         mockMvc.perform(get("/boards/{boardId}", board.getId())
@@ -338,7 +340,7 @@ class BoardApiIntegrationTest {
                 author,
                 "수정 전 제목",
                 "수정 전 내용",
-                java.util.List.of(imageKeys("44444444-4444-4444-4444-444444444444", "png"))
+                List.of(imageKeys("44444444-4444-4444-4444-444444444444", "png"))
         ));
 
         mockMvc.perform(patch("/boards/{boardId}", board.getId())
@@ -436,7 +438,7 @@ class BoardApiIntegrationTest {
     }
 
     private Board saveBoard(String title) {
-        return saveBoard(title, java.util.List.of());
+        return saveBoard(title, List.of());
     }
 
     private Board saveBoard(String title, java.util.List<BoardImageKeys> images) {

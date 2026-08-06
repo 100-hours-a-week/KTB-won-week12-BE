@@ -87,8 +87,7 @@ class BoardApiIntegrationTest {
                 "사과",
                 "apple@naver.com",
                 passwordEncoder.encode("Ilikeapple12!"),
-                UserRole.USER,
-                "https://example.com/profile.png"
+                UserRole.USER
         ));
         when(boardImageStorageService.createDownloadUrl(anyString()))
                 .thenAnswer(invocation -> "https://download.example/" + invocation.getArgument(0));
@@ -383,8 +382,7 @@ class BoardApiIntegrationTest {
                 "바나나",
                 "banana@naver.com",
                 passwordEncoder.encode("Ilikebanana12!"),
-                UserRole.USER,
-                "https://example.com/banana.png"
+                UserRole.USER
         ));
 
         mockMvc.perform(patch("/boards/{boardId}", board.getId())

@@ -30,7 +30,9 @@ class UserServiceTest {
     @Test
     @DisplayName("프로필 이미지만 변경하면 현재 닉네임을 그대로 사용할 수 있다.")
     void currentNicknameCanBeKeptWhenOnlyProfileImageChanges() {
-        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER, "old-image");
+        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER);
+        // 회원정보 수정 테스트는 회원가입 이후 기존 프로필이 등록된 상태를 별도로 구성
+        user.changeProfileImage("old-image");
         CustomUserPrincipal principal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
         UserInfoModifyRequest request = new UserInfoModifyRequest("사과", "new-image");
 

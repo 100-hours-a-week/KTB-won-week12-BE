@@ -50,7 +50,7 @@ class AuthServiceTest {
     @DisplayName("로그인에 성공하면 Access Token과 Refresh Token을 발급한다.")
     void loginSuccessTest() {
         //given
-        User testUser = new User("사과", "apple@naver.com", "Ilikeapple12!", UserRole.USER, "이미지");
+        User testUser = new User("사과", "apple@naver.com", "Ilikeapple12!", UserRole.USER);
 
         LoginRequest request = new LoginRequest(testUser.getEmail(), testUser.getPassword());
         UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(testUser.getEmail(), testUser.getPassword());
@@ -96,8 +96,8 @@ class AuthServiceTest {
     @DisplayName("유효한 회원 정보로 회원가입하면 암호화된 비밀번호와 USER 역할을 저장한다.")
     void signupSuccessTest() {
         //given
-        SignupRequest signupRequest = new SignupRequest("apple@naver.com", "Ilikeapple12!", "사과사과", "이미지");
-        User newUser = new User(signupRequest.getNickname(), signupRequest.getEmail(), signupRequest.getPassword(), UserRole.USER, signupRequest.getProfileImage());
+        SignupRequest signupRequest = new SignupRequest("apple@naver.com", "Ilikeapple12!", "사과사과");
+        User newUser = new User(signupRequest.getNickname(), signupRequest.getEmail(), signupRequest.getPassword(), UserRole.USER);
         //when
         when(userRepository.existsByNicknameAndIsDeletedFalse("사과사과")).thenReturn(false);
         when(userRepository.existsByEmailAndIsDeletedFalse("apple@naver.com")).thenReturn(false);
@@ -105,6 +105,8 @@ class AuthServiceTest {
         //then
         assertThat(authService.signup(signupRequest).getEmail()).isEqualTo(newUser.getEmail());
         assertThat(authService.signup(signupRequest).getNickname()).isEqualTo(newUser.getNickname());
+        // 회원가입에서는 프로필 이미지를 입력받지 않으므로 저장 대상 사용자도 Object Key가 없어야 함
+        verify(userRepository, times(2)).save(argThat(user -> user.getProfileImage() == null));
     }
 
     @Test
@@ -131,7 +133,7 @@ class AuthServiceTest {
     @DisplayName("현재 비밀번호가 일치하면 새로운 비밀번호로 변경한다.")
     void passwordChangeTest(){
         //given
-        User targetUser = new User("사과", "apple@naver.com", "Ilikeapple12!", UserRole.USER, "any");
+        User targetUser = new User("사과", "apple@naver.com", "Ilikeapple12!", UserRole.USER);
         UserPasswordChangeRequest userPasswordChangeRequest = new UserPasswordChangeRequest("Ilikeapple12!", "Ilikecherry12!");
         CustomUserPrincipal userPrincipal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
         //when
@@ -147,7 +149,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("새 비밀번호가 현재 비밀번호와 같으면 변경할 수 없다.")
     void passwordChangeRejectsCurrentlyUsedPassword(){
-        User targetUser = new User("사과", "apple@naver.com", "encodedCurrentPassword", UserRole.USER, "any");
+        User targetUser = new User("사과", "apple@naver.com", "encodedCurrentPassword", UserRole.USER);
         UserPasswordChangeRequest request = new UserPasswordChangeRequest("Ilikeapple12!", "Ilikeapple12!");
         CustomUserPrincipal principal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
 

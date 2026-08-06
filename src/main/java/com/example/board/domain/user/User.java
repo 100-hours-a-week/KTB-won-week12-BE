@@ -50,14 +50,15 @@ public class User {
 
     protected User(){}
 
-    public User(String nickname, String email, String password, UserRole userRole, String profileImage){
+    public User(String nickname, String email, String password, UserRole userRole){
         this.nickname = nickname;
         this.email = email;
         this.password = password;
         this.userRole = userRole;
         this.isDeleted = false;
         this.deleteReason = "";
-        this.profileImage = profileImage;
+        // 회원가입 시에는 프로필 이미지를 받지 않고 로그인 후 별도 수정 흐름에서만 설정
+        this.profileImage = null;
     }
 
     public void changeNickname(String nickname){

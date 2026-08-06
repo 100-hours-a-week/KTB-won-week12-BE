@@ -51,8 +51,7 @@ class AuthUserApiIntegrationTest {
                 "사과",
                 "apple@naver.com",
                 passwordEncoder.encode("Ilikeapple12!"),
-                UserRole.USER,
-                "https://example.com/profile.png"
+                UserRole.USER
         ));
     }
 
@@ -119,6 +118,29 @@ class AuthUserApiIntegrationTest {
                 .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"))
                 .andExpect(jsonPath("$.message")
                         .value("이미 존재하는 이메일입니다."));
+    }
+
+    @Test
+    @DisplayName("회원가입 사용자는 프로필 이미지 Object Key 없이 생성된다.")
+    void signupCreatesUserWithoutProfileImageObjectKey() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "new-user@naver.com",
+                                  "password": "NewPassword12!",
+                                  "nickname": "새사용자"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("USER_SIGNUP"))
+                .andExpect(jsonPath("$.data.email").value("new-user@naver.com"))
+                .andExpect(jsonPath("$.data.nickname").value("새사용자"));
+
+        // 프로필 이미지는 로그인 후 회원정보 수정 API에서만 등록한다.
+        User signedUpUser = userRepository.findByEmailAndIsDeletedFalse("new-user@naver.com")
+                .orElseThrow();
+        assertThat(signedUpUser.getProfileImage()).isNull();
     }
 
     @Test

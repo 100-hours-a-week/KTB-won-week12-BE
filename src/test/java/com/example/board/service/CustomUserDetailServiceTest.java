@@ -27,7 +27,7 @@ class CustomUserDetailServiceTest {
     @Test
     @DisplayName("사용자 조회 시 DB에 저장된 역할만 권한으로 부여한다.")
     void userReceivesOnlyItsPersistedRole() {
-        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER, "image");
+        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER);
         when(userRepository.findByEmailAndIsDeletedFalse(user.getEmail())).thenReturn(Optional.of(user));
 
         var userDetails = customUserDetailService.loadUserByUsername(user.getEmail());

@@ -187,8 +187,7 @@ class BoardLikeApiIntegrationTest {
                 nickname,
                 email,
                 passwordEncoder.encode("Password12!"),
-                UserRole.USER,
-                "https://example.com/profile.png"
+                UserRole.USER
         ));
     }
 

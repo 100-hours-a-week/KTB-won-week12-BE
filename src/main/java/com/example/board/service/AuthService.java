@@ -63,7 +63,6 @@ public class AuthService {
         String email = signupRequest.getEmail();
         String password = signupRequest.getPassword();
         String nickname = signupRequest.getNickname();
-        String profileImage = signupRequest.getProfileImage();
 
         checkEmailDuplication(email);
         checkNicknameDuplication(nickname);  //이메일과 닉네임 중복 체크 후 중복된다면 예외 발생
@@ -71,7 +70,8 @@ public class AuthService {
 
         password = passwordEncoder.encode(password);    //Bean에 등록된 암호화 모듈 사용하여 암호화된 값을 저장
 
-        User user = new User(nickname, email, password, UserRole.USER, profileImage);
+        // 프로필 이미지는 인증 후 회원정보 수정에서만 등록하므로 신규 사용자는 Object Key 없이 생성
+        User user = new User(nickname, email, password, UserRole.USER);
 
         userRepository.save(user);
 

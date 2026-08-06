@@ -17,5 +17,4 @@ public class SignupRequest {
     @NotBlank(message = UserErrorMessage.NICKNAME_REQUIRED)
     @Size(min = 2, max = 10, message = UserErrorMessage.NICKNAME_LENGTH_LIMIT)
     private String nickname;
-    private String profileImage;
 }

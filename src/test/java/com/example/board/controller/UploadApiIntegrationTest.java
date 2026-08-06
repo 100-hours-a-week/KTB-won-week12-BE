@@ -4,10 +4,13 @@ import com.example.board.configuration.jwt.JwtTokenProvider;
 import com.example.board.domain.user.User;
 import com.example.board.domain.user.UserRole;
 import com.example.board.dto.uploadDTO.request.BoardImageUploadUrlRequest;
+import com.example.board.dto.uploadDTO.request.ProfileImageUploadUrlRequest;
 import com.example.board.dto.uploadDTO.response.BoardImageUploadUrlResponse;
 import com.example.board.dto.uploadDTO.response.BoardImageUploadUrlsResponse;
+import com.example.board.dto.uploadDTO.response.ProfileImageUploadUrlResponse;
 import com.example.board.repository.UserRepository;
 import com.example.board.service.BoardImageStorageService;
+import com.example.board.service.ProfileImageStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +54,9 @@ class UploadApiIntegrationTest {
     @MockitoBean
     private BoardImageStorageService boardImageStorageService;
 
+    @MockitoBean
+    private ProfileImageStorageService profileImageStorageService;
+
     private User user;
 
     @BeforeEach
@@ -59,8 +65,7 @@ class UploadApiIntegrationTest {
                 "사과",
                 "upload@naver.com",
                 passwordEncoder.encode("Ilikeapple12!"),
-                UserRole.USER,
-                null
+                UserRole.USER
         ));
     }
 
@@ -114,6 +119,53 @@ class UploadApiIntegrationTest {
                         .content("""
                                 {
                                   "images": []
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("인증된 사용자는 자신의 프로필 이미지 Presigned PUT URL을 발급받는다.")
+    void authenticatedUserCreatesProfileImageUploadUrl() throws Exception {
+        when(profileImageStorageService.createUploadUrl(
+                eq(user.getId()),
+                any(ProfileImageUploadUrlRequest.class)
+        )).thenReturn(new ProfileImageUploadUrlResponse(
+                "profiles/1/group/original.png",
+                "https://s3.example/profile",
+                "image/png",
+                Instant.parse("2026-08-05T10:05:00Z")
+        ));
+
+        mockMvc.perform(post("/uploads/profile-image/presigned-url")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fileName": "profile.png",
+                                  "contentType": "image/png",
+                                  "size": 1048576
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("PROFILE_IMAGE_UPLOAD_URL_CREATED"))
+                .andExpect(jsonPath("$.data.objectKey")
+                        .value("profiles/1/group/original.png"))
+                .andExpect(jsonPath("$.data.uploadUrl")
+                        .value("https://s3.example/profile"))
+                .andExpect(jsonPath("$.data.contentType").value("image/png"));
+    }
+
+    @Test
+    @DisplayName("미인증 사용자는 프로필 이미지 Presigned URL을 발급받을 수 없다.")
+    void profileImageUploadUrlCreationRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/uploads/profile-image/presigned-url")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fileName": "profile.png",
+                                  "contentType": "image/png",
+                                  "size": 1048576
                                 }
                                 """))
                 .andExpect(status().isUnauthorized());

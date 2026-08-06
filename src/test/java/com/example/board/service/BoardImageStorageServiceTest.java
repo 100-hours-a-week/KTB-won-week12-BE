@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -154,7 +155,7 @@ class BoardImageStorageServiceTest {
 
         service.validateOwnedImages(15L, List.of(imageKeys(15L)));
 
-        verify(s3Client, org.mockito.Mockito.times(2)).headObject(any(HeadObjectRequest.class));
+        verify(s3Client, Mockito.times(2)).headObject(any(HeadObjectRequest.class));
     }
 
     @Test

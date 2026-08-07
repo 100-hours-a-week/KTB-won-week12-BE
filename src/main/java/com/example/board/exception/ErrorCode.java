@@ -6,6 +6,7 @@ import com.example.board.exception.errorMessage.CommentErrorMessage;
 import com.example.board.exception.errorMessage.CommonErrorMessage;
 import com.example.board.exception.errorMessage.UserErrorMessage;
 import com.example.board.exception.errorMessage.ImageErrorMessage;
+import com.example.board.exception.errorMessage.VoteErrorMessage;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -62,6 +63,14 @@ public enum ErrorCode {
     BOARD_CURSOR_INVALID(HttpStatus.BAD_REQUEST, BoardErrorMessage.CURSOR_INVALID),
     BOARD_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, BoardErrorMessage.PAGE_SIZE_INVALID),
     BOARD_MODIFY_FORBIDDEN(HttpStatus.FORBIDDEN, BoardErrorMessage.BOARD_MODIFY_FORBIDDEN),
+
+    VOTE_SCORE_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, VoteErrorMessage.SCORE_OUT_OF_RANGE),
+    VOTE_LABEL_REQUIRED(HttpStatus.BAD_REQUEST, VoteErrorMessage.LABEL_REQUIRED),
+    VOTE_LABEL_LENGTH_LIMIT(HttpStatus.BAD_REQUEST, VoteErrorMessage.LABEL_LENGTH_LIMIT),
+    VOTE_LABEL_DUPLICATED(HttpStatus.BAD_REQUEST, VoteErrorMessage.LABEL_DUPLICATED),
+    VOTE_DURATION_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, VoteErrorMessage.DURATION_OUT_OF_RANGE),
+    BOARD_VOTE_NOT_FOUND(HttpStatus.NOT_FOUND, VoteErrorMessage.VOTE_NOT_FOUND),
+    BOARD_VOTE_CLOSED(HttpStatus.CONFLICT, VoteErrorMessage.VOTE_CLOSED),
 
     COMMENT_CONTENT_REQUIRED(HttpStatus.BAD_REQUEST, CommentErrorMessage.CONTENT_REQUIRED),
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, CommentErrorMessage.COMMENT_NOT_FOUND),

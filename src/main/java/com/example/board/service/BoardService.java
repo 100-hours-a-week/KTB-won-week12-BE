@@ -5,6 +5,7 @@ import com.example.board.domain.board.Board;
 import com.example.board.domain.board.BoardModifyRecord;
 import com.example.board.domain.board.BoardLikeRecord;
 import com.example.board.domain.board.BoardViewRecord;
+import com.example.board.domain.board.BoardVote;
 import com.example.board.domain.board.BoardImage;
 import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.domain.user.User;
@@ -28,6 +29,7 @@ import com.example.board.repository.BoardLikeRecordRepository;
 import com.example.board.repository.BoardModifyRecordRepository;
 import com.example.board.repository.BoardRepository;
 import com.example.board.repository.BoardViewRecordRepository;
+import com.example.board.repository.BoardVoteRepository;
 import com.example.board.repository.CommentRepository;
 import com.example.board.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,7 @@ public class BoardService {
     private final BoardRepository boardRepository;
     private final BoardModifyRecordRepository boardModifyRecordRepository;
     private final BoardViewRecordRepository boardViewRecordRepository;
+    private final BoardVoteRepository boardVoteRepository;
     private final BoardLikeRecordRepository boardLikeRecordRepository;
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
@@ -71,7 +74,15 @@ public class BoardService {
                 images
         );
 
-        return BoardCreateResponse.from(boardRepository.save(board));
+        Board savedBoard = boardRepository.save(board);
+
+        if (request.vote() != null) {
+            // 게시글과 투표를 같은 트랜잭션에서 저장하여 둘 중 하나만 생성되는 상태를 방지한다.
+            BoardVote boardVote = request.vote().toEntity(savedBoard, LocalDateTime.now());
+            boardVoteRepository.save(boardVote);
+        }
+
+        return BoardCreateResponse.from(savedBoard);
     }
 
     public BoardCursorResponse getBoards(Long cursor, int size) {

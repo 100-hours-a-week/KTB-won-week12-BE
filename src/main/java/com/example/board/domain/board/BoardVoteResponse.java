@@ -1,6 +1,7 @@
 package com.example.board.domain.board;
 
 import com.example.board.domain.user.User;
+import com.example.board.exception.errorMessage.VoteErrorMessage;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -88,7 +89,7 @@ public class BoardVoteResponse {
 
     private static void validateScore(int leftScore) {
         if (leftScore < MIN_LEFT_SCORE || leftScore > MAX_LEFT_SCORE) {
-            throw new IllegalArgumentException("왼쪽 과실 점수는 0 이상 10 이하여야 합니다.");
+            throw new IllegalArgumentException(VoteErrorMessage.SCORE_OUT_OF_RANGE);
         }
     }
 }

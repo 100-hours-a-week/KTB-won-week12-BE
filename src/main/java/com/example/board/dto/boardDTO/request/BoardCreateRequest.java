@@ -19,7 +19,11 @@ public record BoardCreateRequest(
         String content,
 
         @Size(max = 5, message = ImageErrorMessage.IMAGE_COUNT_LIMIT)
-        List<@NotNull @Valid BoardImageKeyRequest> images
+        List<@NotNull @Valid BoardImageKeyRequest> images,
+
+        // vote 자체는 선택값이지만 전달된 경우에는 내부 라벨과 기간까지 검증한다.
+        @Valid
+        BoardVoteCreateRequest vote
 ) {
     public List<BoardImageKeys> safeImages() {
         return images == null ? List.of() : images.stream().map(BoardImageKeyRequest::toDomain).toList();

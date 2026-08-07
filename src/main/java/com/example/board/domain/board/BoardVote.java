@@ -1,5 +1,6 @@
 package com.example.board.domain.board;
 
+import com.example.board.exception.errorMessage.VoteErrorMessage;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -71,10 +72,10 @@ public class BoardVote {
         String normalizedLeftLabel = normalizeLabel(leftLabel);
         String normalizedRightLabel = normalizeLabel(rightLabel);
         if (normalizedLeftLabel.equals(normalizedRightLabel)) {
-            throw new IllegalArgumentException("투표 대상은 서로 달라야 합니다.");
+            throw new IllegalArgumentException(VoteErrorMessage.LABEL_DUPLICATED);
         }
         if (durationHours < MIN_DURATION_HOURS || durationHours > MAX_DURATION_HOURS) {
-            throw new IllegalArgumentException("투표 기간은 1시간 이상 168시간 이하여야 합니다.");
+            throw new IllegalArgumentException(VoteErrorMessage.DURATION_OUT_OF_RANGE);
         }
 
         // 종료 시각을 클라이언트에서 받지 않고 서버가 정한 시작 시각과 기간으로 계산한다.
@@ -97,18 +98,18 @@ public class BoardVote {
 
     public void validateOpen(LocalDateTime now) {
         if (!isOpen(now)) {
-            throw new IllegalStateException("종료된 투표입니다.");
+            throw new IllegalStateException(VoteErrorMessage.VOTE_CLOSED);
         }
     }
 
     private static String normalizeLabel(String label) {
         if (label == null || label.isBlank()) {
-            throw new IllegalArgumentException("투표 대상은 필수입니다.");
+            throw new IllegalArgumentException(VoteErrorMessage.LABEL_REQUIRED);
         }
 
         String normalizedLabel = label.trim();
         if (normalizedLabel.length() < MIN_LABEL_LENGTH || normalizedLabel.length() > MAX_LABEL_LENGTH) {
-            throw new IllegalArgumentException("투표 대상은 2자 이상 20자 이하여야 합니다.");
+            throw new IllegalArgumentException(VoteErrorMessage.LABEL_LENGTH_LIMIT);
         }
         return normalizedLabel;
     }

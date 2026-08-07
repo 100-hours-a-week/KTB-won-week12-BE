@@ -8,6 +8,7 @@ import com.example.board.domain.user.User;
 import com.example.board.domain.user.UserRole;
 import com.example.board.repository.BoardRepository;
 import com.example.board.repository.BoardViewRecordRepository;
+import com.example.board.repository.BoardVoteRepository;
 import com.example.board.repository.UserRepository;
 import com.example.board.service.BoardService;
 import com.example.board.service.BoardImageStorageService;
@@ -56,6 +57,9 @@ class BoardApiIntegrationTest {
 
     @Autowired
     private BoardViewRecordRepository boardViewRecordRepository;
+
+    @Autowired
+    private BoardVoteRepository boardVoteRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -135,6 +139,81 @@ class BoardApiIntegrationTest {
                         "boards/" + author.getId() + "/11111111-1111-1111-1111-111111111111/original.png",
                         "boards/" + author.getId() + "/22222222-2222-2222-2222-222222222222/original.jpg"
                 );
+    }
+
+    @Test
+    @DisplayName("게시글 작성 시 선택한 두 대상과 기간으로 투표를 함께 생성한다.")
+    void createsBoardWithOptionalVote() throws Exception {
+        mockMvc.perform(post("/boards")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "투표 게시글",
+                                  "content": "사고 상황 설명",
+                                  "images": [],
+                                  "vote": {
+                                    "leftLabel": "  A 차량 ",
+                                    "rightLabel": " B 차량  ",
+                                    "durationHours": 24
+                                  }
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("BOARD_CREATED"));
+
+        Board board = boardRepository.findAll().getFirst();
+        var vote = boardVoteRepository.findByActiveBoardId(board.getId()).orElseThrow();
+
+        assertThat(vote.getLeftLabel()).isEqualTo("A 차량");
+        assertThat(vote.getRightLabel()).isEqualTo("B 차량");
+        assertThat(vote.getEndsAt()).isEqualTo(vote.getStartedAt().plusHours(24));
+    }
+
+    @Test
+    @DisplayName("투표를 선택하지 않으면 게시글만 생성한다.")
+    void createsBoardWithoutVote() throws Exception {
+        mockMvc.perform(post("/boards")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "일반 게시글",
+                                  "content": "투표가 없는 게시글",
+                                  "images": [],
+                                  "vote": null
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        assertThat(boardRepository.count()).isEqualTo(1);
+        assertThat(boardVoteRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("공백 제거 후 동일한 투표 대상은 게시글 생성 전에 거부한다.")
+    void rejectsDuplicatedVoteLabels() throws Exception {
+        mockMvc.perform(post("/boards")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "잘못된 투표",
+                                  "content": "중복 대상",
+                                  "images": [],
+                                  "vote": {
+                                    "leftLabel": " A 차량 ",
+                                    "rightLabel": "A 차량",
+                                    "durationHours": 24
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VOTE_LABEL_DUPLICATED"));
+
+        // Bean Validation이 서비스 호출 전에 실패하므로 게시글과 투표 모두 저장되지 않는다.
+        assertThat(boardRepository.count()).isZero();
+        assertThat(boardVoteRepository.count()).isZero();
     }
 
     @Test

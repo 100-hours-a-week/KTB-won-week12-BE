@@ -52,6 +52,7 @@ class UserServiceTest {
 
         verify(profileImageStorageService).validateOwnedProfileImage(1L, newObjectKey);
         assertThat(response.getNickname()).isEqualTo("사과");
+        assertThat(response.getProfileImageObjectKey()).isEqualTo(newObjectKey);
         assertThat(response.getProfileImage()).isEqualTo("https://s3.example/profile");
     }
 
@@ -73,7 +74,34 @@ class UserServiceTest {
         // 제거 요청은 조회할 S3 객체가 없으므로 저장소 검증을 건너뛴다.
         verify(profileImageStorageService, never()).validateOwnedProfileImage(any(), any());
         assertThat(user.getProfileImageObjectKey()).isNull();
+        assertThat(response.getProfileImageObjectKey()).isNull();
         assertThat(response.getProfileImage()).isNull();
+    }
+
+    @Test
+    @DisplayName("기존 프로필 Object Key를 그대로 보내면 S3 객체를 다시 검증하지 않는다.")
+    void unchangedProfileImageObjectKeySkipsStorageValidation() {
+        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER);
+        String currentObjectKey =
+                "profiles/1/11111111-1111-1111-1111-111111111111/original.png";
+        user.changeProfileImageObjectKey(currentObjectKey);
+        CustomUserPrincipal principal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
+
+        when(userRepository.existsByNicknameAndIdNotAndIsDeletedFalse("새사과", 1L)).thenReturn(false);
+        when(userRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(profileImageStorageService.createDownloadUrl(currentObjectKey))
+                .thenReturn("https://s3.example/profile");
+
+        UserInfoModifyResponse response = userService.modifyUserInfo(
+                new UserInfoModifyRequest("새사과", currentObjectKey),
+                principal
+        );
+
+        // 이미 DB에 검증되어 저장된 Key이므로 닉네임 수정 때마다 HeadObject 비용을 발생시키지 않는다.
+        verify(profileImageStorageService, never()).validateOwnedProfileImage(any(), any());
+        assertThat(response.getNickname()).isEqualTo("새사과");
+        assertThat(response.getProfileImageObjectKey()).isEqualTo(currentObjectKey);
+        assertThat(response.getProfileImage()).isEqualTo("https://s3.example/profile");
     }
 
     @Test
@@ -90,6 +118,7 @@ class UserServiceTest {
 
         var response = userService.getUserInfo(principal);
 
+        assertThat(response.getProfileImageObjectKey()).isEqualTo(objectKey);
         assertThat(response.getProfileImage()).isEqualTo("https://s3.example/profile");
     }
 

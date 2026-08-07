@@ -53,8 +53,10 @@ public class UserService {
                 () -> new NotFoundException(ErrorCode.USER_NOT_FOUND)
         );
 
-        if (newProfileImageObjectKey != null) {
-            // DB에 저장하기 전에 현재 사용자 소유 경로와 실제 S3 객체 메타데이터를 모두 확인한다.
+        String currentProfileImageObjectKey = modifyTargetUser.getProfileImageObjectKey();
+        if (newProfileImageObjectKey != null
+                && !newProfileImageObjectKey.equals(currentProfileImageObjectKey)) {
+            // 새 Key로 교체할 때만 소유 경로와 실제 S3 객체를 확인하고, 기존 Key 유지는 S3 재조회 없이 처리한다.
             profileImageStorageService.validateOwnedProfileImage(userId, newProfileImageObjectKey);
         }
 

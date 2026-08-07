@@ -200,6 +200,7 @@ class AuthUserApiIntegrationTest {
                                 """.formatted(objectKey)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("USER_UPDATE"))
+                .andExpect(jsonPath("$.data.profileImageObjectKey").value(objectKey))
                 .andExpect(jsonPath("$.data.profileImage").value("https://s3.example/profile"));
 
         // 서비스 검증을 통과한 Key만 영속 상태의 사용자에게 반영되어야 한다.
@@ -221,6 +222,7 @@ class AuthUserApiIntegrationTest {
         mockMvc.perform(get("/users/me")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profileImageObjectKey").value(objectKey))
                 .andExpect(jsonPath("$.data.profileImage")
                         .value("https://s3.example/profile"));
     }
@@ -244,6 +246,7 @@ class AuthUserApiIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profileImageObjectKey").doesNotExist())
                 .andExpect(jsonPath("$.data.profileImage").doesNotExist());
 
         verify(profileImageStorageService, never()).validateOwnedProfileImage(user.getId(), null);

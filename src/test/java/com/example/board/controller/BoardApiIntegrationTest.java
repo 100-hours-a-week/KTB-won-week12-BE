@@ -4,11 +4,14 @@ import com.example.board.configuration.jwt.JwtTokenProvider;
 import com.example.board.domain.board.Board;
 import com.example.board.domain.board.BoardModifyRecord;
 import com.example.board.domain.board.BoardImageKeys;
+import com.example.board.domain.board.BoardVote;
+import com.example.board.domain.board.BoardVoteResponse;
 import com.example.board.domain.user.User;
 import com.example.board.domain.user.UserRole;
 import com.example.board.repository.BoardRepository;
 import com.example.board.repository.BoardViewRecordRepository;
 import com.example.board.repository.BoardVoteRepository;
+import com.example.board.repository.BoardVoteResponseRepository;
 import com.example.board.repository.UserRepository;
 import com.example.board.service.BoardService;
 import com.example.board.service.BoardImageStorageService;
@@ -32,6 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,6 +64,9 @@ class BoardApiIntegrationTest {
 
     @Autowired
     private BoardVoteRepository boardVoteRepository;
+
+    @Autowired
+    private BoardVoteResponseRepository boardVoteResponseRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -334,13 +341,78 @@ class BoardApiIntegrationTest {
                 .andExpect(jsonPath("$.data.boardId").value(board.getId()))
                 .andExpect(jsonPath("$.data.viewCount").value(0))
                 .andExpect(jsonPath("$.data.likedByMe").value(false))
-                .andExpect(jsonPath("$.data.editableByMe").value(false));
+                .andExpect(jsonPath("$.data.editableByMe").value(false))
+                .andExpect(jsonPath("$.data.vote").doesNotExist());
 
         mockMvc.perform(get("/boards/{boardId}", board.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.viewCount").value(0));
 
         assertThat(boardViewRecordRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("응답이 없는 투표는 공개 메타데이터와 0건을 반환하고 결과는 숨긴다.")
+    void boardDetailReturnsZeroVoteState() throws Exception {
+        Board board = saveBoard("투표 시작 게시글");
+        BoardVote vote = saveOpenVote(board);
+
+        mockMvc.perform(get("/boards/{boardId}", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.vote.voteId").value(vote.getId()))
+                .andExpect(jsonPath("$.data.vote.leftLabel").value("A 차량"))
+                .andExpect(jsonPath("$.data.vote.rightLabel").value("B 차량"))
+                .andExpect(jsonPath("$.data.vote.status").value("OPEN"))
+                .andExpect(jsonPath("$.data.vote.totalVoteCount").value(0))
+                .andExpect(jsonPath("$.data.vote.result").doesNotExist())
+                .andExpect(jsonPath("$.data.vote.myVote").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("상세 조회는 비참여자의 결과를 숨기고 참여자에게 내 응답과 반올림한 결과를 반환한다.")
+    void boardDetailRevealsResultOnlyToParticipant() throws Exception {
+        Board board = saveBoard("참여 결과 게시글");
+        BoardVote vote = saveOpenVote(board);
+        User firstVoter = saveUser("첫투표자", "detail-first@example.com");
+        User secondVoter = saveUser("둘투표자", "detail-second@example.com");
+        LocalDateTime responseTime = LocalDateTime.now();
+        boardVoteResponseRepository.save(BoardVoteResponse.create(vote, firstVoter, 4, responseTime));
+        boardVoteResponseRepository.saveAndFlush(BoardVoteResponse.create(vote, secondVoter, 5, responseTime));
+
+        // 작성자는 투표에 참여하지 않았으므로 총 참여 수만 볼 수 있다.
+        mockMvc.perform(get("/boards/{boardId}", board.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.vote.totalVoteCount").value(2))
+                .andExpect(jsonPath("$.data.vote.result").doesNotExist())
+                .andExpect(jsonPath("$.data.vote.myVote").doesNotExist());
+
+        // 평균 4.5는 HALF_UP으로 5가 되고 오른쪽 결과도 10 - 5로 계산된다.
+        mockMvc.perform(get("/boards/{boardId}", board.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken(firstVoter)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.vote.result.leftScore").value(5))
+                .andExpect(jsonPath("$.data.vote.result.rightScore").value(5))
+                .andExpect(jsonPath("$.data.vote.myVote.leftScore").value(4))
+                .andExpect(jsonPath("$.data.vote.myVote.rightScore").value(6));
+    }
+
+    @Test
+    @DisplayName("종료된 투표는 상세 응답에서 CLOSED 상태로 반환한다.")
+    void boardDetailReturnsClosedVoteStatus() throws Exception {
+        Board board = saveBoard("종료된 투표 게시글");
+        BoardVote vote = BoardVote.create(
+                board,
+                "A 차량",
+                "B 차량",
+                1,
+                LocalDateTime.now().minusHours(2)
+        );
+        boardVoteRepository.saveAndFlush(vote);
+
+        mockMvc.perform(get("/boards/{boardId}", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.vote.status").value("CLOSED"));
     }
 
     @Test
@@ -391,6 +463,37 @@ class BoardApiIntegrationTest {
         try {
             boardService.getBoards(null, 10);
             assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);         //게시글과 작성자 조회, 게시물 최신 수정 이력 조회, 게시물 최초 작성 시각 조회, 댓글 조회 총 4번의 쿼리가 발생해야 함
+        } finally {
+            statistics.setStatisticsEnabled(false);
+        }
+    }
+
+    @Test
+    @DisplayName("투표 응답 수가 증가해도 게시글 상세 조회 쿼리 수는 일정하다.")
+    void boardDetailVoteQueryCountDoesNotGrowPerResponse() {
+        Board board = saveBoard("쿼리 수 게시글");
+        BoardVote vote = saveOpenVote(board);
+        LocalDateTime responseTime = LocalDateTime.now();
+
+        for (int index = 1; index <= 3; index++) {
+            User voter = saveUser("투표자" + index, "query-voter" + index + "@example.com");
+            boardVoteResponseRepository.save(
+                    BoardVoteResponse.create(vote, voter, index * 2, responseTime)
+            );
+        }
+        entityManager.flush();
+        entityManager.clear();
+
+        SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
+        Statistics statistics = sessionFactory.getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+
+        try {
+            boardService.getBoard(board.getId(), null);
+
+            // 게시글, 최초 이력, 최신 이력, 댓글 수, 투표, COUNT/AVG 집계 쿼리만 실행한다.
+            assertThat(statistics.getPrepareStatementCount()).isEqualTo(6);
         } finally {
             statistics.setStatisticsEnabled(false);
         }
@@ -559,6 +662,25 @@ class BoardApiIntegrationTest {
                 baseKey + "original." + originalExtension,
                 baseKey + "thumbnail.webp"
         );
+    }
+
+    private User saveUser(String nickname, String email) {
+        return userRepository.saveAndFlush(new User(
+                nickname,
+                email,
+                passwordEncoder.encode("Password12!"),
+                UserRole.USER
+        ));
+    }
+
+    private BoardVote saveOpenVote(Board board) {
+        return boardVoteRepository.saveAndFlush(BoardVote.create(
+                board,
+                "A 차량",
+                "B 차량",
+                24,
+                LocalDateTime.now().minusMinutes(1)
+        ));
     }
 
     private String bearerToken() {

@@ -6,6 +6,7 @@ import com.example.board.domain.board.BoardModifyRecord;
 import com.example.board.domain.board.BoardLikeRecord;
 import com.example.board.domain.board.BoardViewRecord;
 import com.example.board.domain.board.BoardVote;
+import com.example.board.domain.board.BoardVoteResponse;
 import com.example.board.domain.board.BoardImage;
 import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.domain.user.User;
@@ -19,6 +20,9 @@ import com.example.board.dto.boardDTO.response.BoardImageResponse;
 import com.example.board.dto.boardDTO.response.BoardLikeResponse;
 import com.example.board.dto.boardDTO.response.BoardSummaryResponse;
 import com.example.board.dto.boardDTO.response.BoardUpdateResponse;
+import com.example.board.dto.boardDTO.response.BoardVoteDetailResponse;
+import com.example.board.dto.boardDTO.response.BoardVoteMyResponse;
+import com.example.board.dto.boardDTO.response.BoardVoteResultResponse;
 import com.example.board.exception.BadRequestException;
 import com.example.board.exception.ErrorCode;
 import com.example.board.exception.ForbiddenException;
@@ -30,6 +34,8 @@ import com.example.board.repository.BoardModifyRecordRepository;
 import com.example.board.repository.BoardRepository;
 import com.example.board.repository.BoardViewRecordRepository;
 import com.example.board.repository.BoardVoteRepository;
+import com.example.board.repository.BoardVoteResponseRepository;
+import com.example.board.repository.BoardVoteAggregateProjection;
 import com.example.board.repository.CommentRepository;
 import com.example.board.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +44,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +61,7 @@ public class BoardService {
     private final BoardModifyRecordRepository boardModifyRecordRepository;
     private final BoardViewRecordRepository boardViewRecordRepository;
     private final BoardVoteRepository boardVoteRepository;
+    private final BoardVoteResponseRepository boardVoteResponseRepository;
     private final BoardLikeRecordRepository boardLikeRecordRepository;
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
@@ -163,6 +172,8 @@ public class BoardService {
                 && boardLikeRecordRepository.existsByLikedUserIdAndLikedBoardId(viewer.getId(), boardId);
         long commentCount = commentRepository.countByBoardIdAndIsDeletedFalse(boardId);
 
+        BoardVoteDetailResponse vote = createVoteDetail(boardId, viewer, LocalDateTime.now());
+
         return new BoardDetailResponse(
                 board.getId(),
                 latestRecord.getTitle(),
@@ -175,7 +186,8 @@ public class BoardService {
                 board.getNumberOfViews(),
                 commentCount,
                 likedByMe,
-                viewer != null && board.getAuthor().getId().equals(viewer.getId())
+                viewer != null && board.getAuthor().getId().equals(viewer.getId()),
+                vote
         );
     }
 
@@ -303,6 +315,50 @@ public class BoardService {
                 author,
                 profileImageStorageService.createDownloadUrl(author.getProfileImageObjectKey())
         );
+    }
+
+    private BoardVoteDetailResponse createVoteDetail(Long boardId, User viewer, LocalDateTime now) {
+        return boardVoteRepository.findByActiveBoardId(boardId)
+                .map(vote -> {
+                    // COUNT와 AVG만 조회하여 응답 수와 관계없이 고정된 한 번의 집계 쿼리를 사용한다.
+                    BoardVoteAggregateProjection aggregate = boardVoteResponseRepository
+                            .findAggregateByBoardVoteId(vote.getId());
+                    BoardVoteResponse myResponse = viewer == null
+                            ? null
+                            : boardVoteResponseRepository
+                                    .findByBoardVoteIdAndVoterId(vote.getId(), viewer.getId())
+                                    .orElse(null);
+
+                    // 상세 API에서는 참여자에게만 결과를 노출하고 비참여자는 별도 결과 API를 사용한다.
+                    BoardVoteResultResponse result = myResponse == null
+                            ? null
+                            : createVoteResult(aggregate);
+
+                    return new BoardVoteDetailResponse(
+                            vote.getId(),
+                            vote.getLeftLabel(),
+                            vote.getRightLabel(),
+                            vote.getStatus(now),
+                            vote.getStartedAt(),
+                            vote.getEndsAt(),
+                            aggregate.getTotalVoteCount(),
+                            result,
+                            myResponse == null ? null : BoardVoteMyResponse.from(myResponse)
+                    );
+                })
+                .orElse(null);
+    }
+
+    private BoardVoteResultResponse createVoteResult(BoardVoteAggregateProjection aggregate) {
+        if (aggregate.getTotalVoteCount() == 0 || aggregate.getAverageLeftScore() == null) {
+            return null;
+        }
+
+        // 왼쪽 평균만 HALF_UP으로 반올림하고 오른쪽은 보수 관계로 계산한다.
+        int roundedLeftScore = BigDecimal.valueOf(aggregate.getAverageLeftScore())
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValueExact();
+        return BoardVoteResultResponse.fromLeftScore(roundedLeftScore);
     }
 
     private BoardModifyRecord requireLatestRecord(Map<Long, BoardModifyRecord> records, Long boardId) { //최신 게시글 기록 있는지 검증

@@ -15,6 +15,8 @@ public record BoardDetailResponse(
         int viewCount,
         long commentCount,
         boolean likedByMe,
-        boolean editableByMe
+        boolean editableByMe,
+        // 투표를 생성하지 않은 게시글은 JSON에서 vote: null로 반환한다.
+        BoardVoteDetailResponse vote
 ) {
 }

@@ -96,6 +96,10 @@ public class BoardVote {
         return now.isBefore(endsAt);
     }
 
+    public BoardVoteStatus getStatus(LocalDateTime now) {
+        return isOpen(now) ? BoardVoteStatus.OPEN : BoardVoteStatus.CLOSED;
+    }
+
     public void validateOpen(LocalDateTime now) {
         if (!isOpen(now)) {
             throw new IllegalStateException(VoteErrorMessage.VOTE_CLOSED);

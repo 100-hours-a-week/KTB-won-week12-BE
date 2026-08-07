@@ -52,7 +52,9 @@ class BoardVoteTest {
 
         // 종료 직전은 OPEN이지만 종료 시각부터는 CLOSED로 판단해야 한다.
         assertThat(vote.isOpen(startedAt.plusMinutes(59))).isTrue();
+        assertThat(vote.getStatus(startedAt.plusMinutes(59))).isEqualTo(BoardVoteStatus.OPEN);
         assertThat(vote.isOpen(startedAt.plusHours(1))).isFalse();
+        assertThat(vote.getStatus(startedAt.plusHours(1))).isEqualTo(BoardVoteStatus.CLOSED);
         assertThatThrownBy(() -> vote.validateOpen(startedAt.plusHours(1)))
                 .isInstanceOf(IllegalStateException.class);
     }

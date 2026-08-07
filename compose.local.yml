@@ -1,0 +1,33 @@
+name: kmap-local
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      # 운영 RDS와 무관한 로컬 개발 전용 DB와 계정이다.
+      MYSQL_DATABASE: kmap_local
+      MYSQL_USER: kmap
+      MYSQL_PASSWORD: kmap-local-password
+      MYSQL_ROOT_PASSWORD: kmap-local-root-password
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      # 외부 네트워크에는 공개하지 않고 현재 개발 PC에서만 접근을 허용한다.
+      - "127.0.0.1:3306:3306"
+    volumes:
+      # 컨테이너를 재생성해도 로컬 개발 데이터는 이름 있는 볼륨에 유지한다.
+      - mysql-local-data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mysql-local-data:

@@ -12,11 +12,14 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.time.Instant;
 import java.util.Locale;
@@ -77,6 +80,29 @@ public class ProfileImageStorageService {
         String expectedFileName = "original." + extensionFor(storedContentType);
         if (!keyParts[3].equals(expectedFileName)) {
             throw new BadRequestException(ErrorCode.IMAGE_OBJECT_KEY_INVALID);
+        }
+    }
+
+    public String createDownloadUrl(String objectKey) {
+        if (objectKey == null) {
+            // 프로필을 등록하지 않은 사용자는 불필요한 Presigner 호출 없이 null을 그대로 응답한다.
+            return null;
+        }
+
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(properties.bucket())
+                    .key(objectKey)
+                    .build();
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(
+                    GetObjectPresignRequest.builder()
+                            .signatureDuration(properties.downloadUrlExpiration())
+                            .getObjectRequest(getObjectRequest)
+                            .build()
+            );
+            return presignedRequest.url().toExternalForm();
+        } catch (SdkException exception) {
+            throw new BusinessException(ErrorCode.IMAGE_STORAGE_UNAVAILABLE);
         }
     }
 

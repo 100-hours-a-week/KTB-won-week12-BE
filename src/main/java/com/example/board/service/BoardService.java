@@ -54,6 +54,7 @@ public class BoardService {
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
     private final BoardImageStorageService boardImageStorageService;
+    private final ProfileImageStorageService profileImageStorageService;
 
     @Transactional
     public BoardCreateResponse createBoard(BoardCreateRequest request, CustomUserPrincipal principal) {
@@ -156,7 +157,7 @@ public class BoardService {
                 latestRecord.getTitle(),
                 latestRecord.getContent(),
                 latestRecord.getBoardImage().stream().map(this::toImageResponse).toList(),
-                BoardAuthorResponse.from(board.getAuthor()),
+                toAuthorResponse(board.getAuthor()),
                 firstRecord.getRegistDate(),
                 latestRecord.getRegistDate(),
                 board.getNumberOfLikes(),
@@ -264,7 +265,7 @@ public class BoardService {
         return new BoardSummaryResponse(
                 board.getId(),
                 latestRecord.getTitle(),
-                BoardAuthorResponse.from(board.getAuthor()),
+                toAuthorResponse(board.getAuthor()),
                 createdAt,
                 board.getNumberOfLikes(),
                 commentCount,
@@ -282,6 +283,14 @@ public class BoardService {
                 image,
                 boardImageStorageService.createDownloadUrl(image.getOriginalObjectKey()),
                 boardImageStorageService.createDownloadUrl(image.getThumbnailObjectKey())
+        );
+    }
+
+    private BoardAuthorResponse toAuthorResponse(User author) {
+        // DB에는 Object Key를 유지하고 외부 응답을 만들 때만 만료 시간이 있는 조회 URL로 변환한다.
+        return BoardAuthorResponse.from(
+                author,
+                profileImageStorageService.createDownloadUrl(author.getProfileImageObjectKey())
         );
     }
 

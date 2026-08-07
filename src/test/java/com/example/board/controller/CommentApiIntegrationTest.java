@@ -10,6 +10,7 @@ import com.example.board.repository.BoardRepository;
 import com.example.board.repository.CommentRepository;
 import com.example.board.repository.UserRepository;
 import com.example.board.service.CommentService;
+import com.example.board.service.ProfileImageStorageService;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -27,11 +28,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -67,6 +70,9 @@ class CommentApiIntegrationTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @MockitoBean
+    private ProfileImageStorageService profileImageStorageService;
 
     private User author;
     private User otherUser;
@@ -165,6 +171,23 @@ class CommentApiIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].commentId").value(comment.getId()))
                 .andExpect(jsonPath("$.data.content[0].content").value("공개 댓글"))
                 .andExpect(jsonPath("$.data.content[0].editableByMe").value(false));
+    }
+
+    @Test
+    @DisplayName("댓글 작성자 프로필은 Presigned GET URL로 반환한다.")
+    void commentResponseReturnsAuthorProfileImageDownloadUrl() throws Exception {
+        String objectKey = "profiles/" + author.getId()
+                + "/11111111-1111-1111-1111-111111111111/original.png";
+        author.changeProfileImageObjectKey(objectKey);
+        userRepository.flush();
+        when(profileImageStorageService.createDownloadUrl(objectKey))
+                .thenReturn("https://s3.example/profile");
+        saveComment("프로필 댓글", author);
+
+        mockMvc.perform(get("/boards/{boardId}/comments", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].author.profileImage")
+                        .value("https://s3.example/profile"));
     }
 
     @Test

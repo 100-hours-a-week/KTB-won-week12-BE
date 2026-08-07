@@ -21,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -185,6 +186,8 @@ class AuthUserApiIntegrationTest {
     void updateMyProfileImageObjectKey() throws Exception {
         String objectKey = "profiles/" + user.getId()
                 + "/11111111-1111-1111-1111-111111111111/original.png";
+        when(profileImageStorageService.createDownloadUrl(objectKey))
+                .thenReturn("https://s3.example/profile");
 
         mockMvc.perform(patch("/users/me")
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
@@ -197,12 +200,29 @@ class AuthUserApiIntegrationTest {
                                 """.formatted(objectKey)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("USER_UPDATE"))
-                .andExpect(jsonPath("$.data.profileImage").value(objectKey));
+                .andExpect(jsonPath("$.data.profileImage").value("https://s3.example/profile"));
 
         // 서비스 검증을 통과한 Key만 영속 상태의 사용자에게 반영되어야 한다.
         verify(profileImageStorageService).validateOwnedProfileImage(user.getId(), objectKey);
         assertThat(userRepository.findById(user.getId()).orElseThrow()
                 .getProfileImageObjectKey()).isEqualTo(objectKey);
+    }
+
+    @Test
+    @DisplayName("내 정보 조회는 프로필 Object Key가 아닌 Presigned GET URL을 반환한다.")
+    void myInfoReturnsProfileImageDownloadUrl() throws Exception {
+        String objectKey = "profiles/" + user.getId()
+                + "/11111111-1111-1111-1111-111111111111/original.png";
+        user.changeProfileImageObjectKey(objectKey);
+        userRepository.flush();
+        when(profileImageStorageService.createDownloadUrl(objectKey))
+                .thenReturn("https://s3.example/profile");
+
+        mockMvc.perform(get("/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profileImage")
+                        .value("https://s3.example/profile"));
     }
 
     @Test

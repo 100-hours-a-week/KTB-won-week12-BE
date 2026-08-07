@@ -45,12 +45,14 @@ class UserServiceTest {
 
         when(userRepository.existsByNicknameAndIdNotAndIsDeletedFalse("사과", 1L)).thenReturn(false);
         when(userRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(profileImageStorageService.createDownloadUrl(newObjectKey))
+                .thenReturn("https://s3.example/profile");
 
         UserInfoModifyResponse response = userService.modifyUserInfo(request, principal);
 
         verify(profileImageStorageService).validateOwnedProfileImage(1L, newObjectKey);
         assertThat(response.getNickname()).isEqualTo("사과");
-        assertThat(response.getProfileImage()).isEqualTo(newObjectKey);
+        assertThat(response.getProfileImage()).isEqualTo("https://s3.example/profile");
     }
 
     @Test
@@ -72,6 +74,23 @@ class UserServiceTest {
         verify(profileImageStorageService, never()).validateOwnedProfileImage(any(), any());
         assertThat(user.getProfileImageObjectKey()).isNull();
         assertThat(response.getProfileImage()).isNull();
+    }
+
+    @Test
+    @DisplayName("내 정보 조회는 DB Object Key 대신 Presigned 프로필 URL을 반환한다.")
+    void getUserInfoReturnsProfileImageDownloadUrl() {
+        User user = new User("사과", "apple@naver.com", "encodedPassword", UserRole.USER);
+        String objectKey = "profiles/1/11111111-1111-1111-1111-111111111111/original.png";
+        user.changeProfileImageObjectKey(objectKey);
+        CustomUserPrincipal principal = new CustomUserPrincipal(1L, "apple@naver.com", "ROLE_USER");
+
+        when(userRepository.findByIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(profileImageStorageService.createDownloadUrl(objectKey))
+                .thenReturn("https://s3.example/profile");
+
+        var response = userService.getUserInfo(principal);
+
+        assertThat(response.getProfileImage()).isEqualTo("https://s3.example/profile");
     }
 
     @Test

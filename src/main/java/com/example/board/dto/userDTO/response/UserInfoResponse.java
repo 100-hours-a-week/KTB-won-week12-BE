@@ -11,9 +11,9 @@ public class UserInfoResponse {
     private final String nickname;
     private final String profileImage;
 
-    public static UserInfoResponse from(User user){
+    public static UserInfoResponse from(User user, String profileImageUrl){
         return new UserInfoResponse(user.getEmail(),
                 user.getNickname(),
-                user.getProfileImageObjectKey());
+                profileImageUrl);
     }
 }

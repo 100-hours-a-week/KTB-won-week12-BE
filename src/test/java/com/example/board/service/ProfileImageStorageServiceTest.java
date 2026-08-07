@@ -18,6 +18,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.net.URI;
 import java.time.Duration;
@@ -82,6 +84,34 @@ class ProfileImageStorageServiceTest {
         assertThat(captor.getValue().putObjectRequest().key()).isEqualTo(response.objectKey());
         assertThat(captor.getValue().putObjectRequest().contentType()).isEqualTo("image/png");
         assertThat(captor.getValue().signatureDuration()).isEqualTo(Duration.ofMinutes(5));
+    }
+
+    @Test
+    @DisplayName("저장된 프로필 Object Key로 Presigned GET URL을 발급한다.")
+    void createsProfileImageDownloadUrl() throws Exception {
+        PresignedGetObjectRequest presignedRequest = mock(PresignedGetObjectRequest.class);
+        when(presignedRequest.url()).thenReturn(URI.create("https://s3.example/profile-download").toURL());
+        when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class)))
+                .thenReturn(presignedRequest);
+
+        String objectKey = profileObjectKey(15L, "png");
+        String downloadUrl = service.createDownloadUrl(objectKey);
+
+        assertThat(downloadUrl).isEqualTo("https://s3.example/profile-download");
+
+        ArgumentCaptor<GetObjectPresignRequest> captor =
+                ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+        verify(s3Presigner).presignGetObject(captor.capture());
+        assertThat(captor.getValue().getObjectRequest().bucket()).isEqualTo("test-bucket");
+        assertThat(captor.getValue().getObjectRequest().key()).isEqualTo(objectKey);
+        assertThat(captor.getValue().signatureDuration()).isEqualTo(Duration.ofHours(1));
+    }
+
+    @Test
+    @DisplayName("프로필 Object Key가 없으면 Presigned GET URL을 발급하지 않는다.")
+    void nullProfileImageDoesNotCreateDownloadUrl() {
+        assertThat(service.createDownloadUrl(null)).isNull();
+        verify(s3Presigner, never()).presignGetObject(any(GetObjectPresignRequest.class));
     }
 
     @Test

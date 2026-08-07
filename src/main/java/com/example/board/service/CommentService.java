@@ -42,6 +42,7 @@ public class CommentService {
     private final CommentModifyRecordRepository commentModifyRecordRepository;
     private final BoardRepository boardRepository;
     private final UserRepository userRepository;
+    private final ProfileImageStorageService profileImageStorageService;
 
     @Transactional
     public CommentCreateResponse createComment( //게시글을 비관적 락을 사용해 조회 후 댓글을 추가.
@@ -152,7 +153,12 @@ public class CommentService {
         return new CommentResponse(
                 comment.getId(),
                 latestRecord.getContent(),
-                CommentAuthorResponse.from(comment.getAuthor()),
+                CommentAuthorResponse.from(
+                        comment.getAuthor(),
+                        profileImageStorageService.createDownloadUrl(
+                                comment.getAuthor().getProfileImageObjectKey()
+                        )
+                ),
                 createdAt,
                 latestRecord.getRegistDate(),
                 comment.getAuthor().getId().equals(requesterId)

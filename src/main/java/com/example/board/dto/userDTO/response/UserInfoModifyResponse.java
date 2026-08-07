@@ -10,7 +10,7 @@ public class UserInfoModifyResponse {
     private final String nickname;
     private final String profileImage;
 
-    public static UserInfoModifyResponse from(User user){
-        return new UserInfoModifyResponse(user.getNickname(), user.getProfileImageObjectKey());
+    public static UserInfoModifyResponse from(User user, String profileImageUrl){
+        return new UserInfoModifyResponse(user.getNickname(), profileImageUrl);
     }
 }

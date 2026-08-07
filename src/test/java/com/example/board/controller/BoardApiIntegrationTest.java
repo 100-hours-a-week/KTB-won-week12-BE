@@ -11,6 +11,7 @@ import com.example.board.repository.BoardViewRecordRepository;
 import com.example.board.repository.UserRepository;
 import com.example.board.service.BoardService;
 import com.example.board.service.BoardImageStorageService;
+import com.example.board.service.ProfileImageStorageService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.Hibernate;
@@ -76,6 +77,9 @@ class BoardApiIntegrationTest {
 
     @MockitoBean
     private BoardImageStorageService boardImageStorageService;
+
+    @MockitoBean
+    private ProfileImageStorageService profileImageStorageService;
 
     private User author;
 
@@ -213,6 +217,28 @@ class BoardApiIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].thumbnailImageUrl")
                         .value("https://download.example/boards/" + author.getId()
                                 + "/66666666-6666-6666-6666-666666666666/thumbnail.webp"));
+    }
+
+    @Test
+    @DisplayName("게시글 목록과 상세의 작성자 프로필은 Presigned GET URL로 반환한다.")
+    void boardResponsesReturnAuthorProfileImageDownloadUrl() throws Exception {
+        String objectKey = "profiles/" + author.getId()
+                + "/11111111-1111-1111-1111-111111111111/original.png";
+        author.changeProfileImageObjectKey(objectKey);
+        userRepository.flush();
+        when(profileImageStorageService.createDownloadUrl(objectKey))
+                .thenReturn("https://s3.example/profile");
+        Board board = saveBoard("프로필 응답 게시글");
+
+        mockMvc.perform(get("/boards"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].author.profileImage")
+                        .value("https://s3.example/profile"));
+
+        mockMvc.perform(get("/boards/{boardId}", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.author.profileImage")
+                        .value("https://s3.example/profile"));
     }
 
     @Test

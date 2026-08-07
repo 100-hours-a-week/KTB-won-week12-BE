@@ -30,7 +30,10 @@ public class UserService {
                 () -> new NotFoundException(ErrorCode.USER_NOT_FOUND)
         );
 
-        return UserInfoResponse.from(userFoundById);
+        return UserInfoResponse.from(
+                userFoundById,
+                profileImageStorageService.createDownloadUrl(userFoundById.getProfileImageObjectKey())
+        );
     }
 
     @Transactional
@@ -59,7 +62,10 @@ public class UserService {
         // null은 프로필 제거를 의미하며, 값이 있으면 검증된 Object Key로 교체한다.
         modifyTargetUser.changeProfileImageObjectKey(newProfileImageObjectKey);
 
-        return UserInfoModifyResponse.from(modifyTargetUser);
+        return UserInfoModifyResponse.from(
+                modifyTargetUser,
+                profileImageStorageService.createDownloadUrl(modifyTargetUser.getProfileImageObjectKey())
+        );
     }
 
     public boolean isEmailAvailable(String email) {

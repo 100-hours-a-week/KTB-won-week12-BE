@@ -11,6 +11,7 @@ import com.example.board.domain.board.BoardImage;
 import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.domain.user.User;
 import com.example.board.dto.boardDTO.request.BoardCreateRequest;
+import com.example.board.dto.boardDTO.request.BoardVoteRequest;
 import com.example.board.dto.boardDTO.request.BoardUpdateRequest;
 import com.example.board.dto.boardDTO.response.BoardAuthorResponse;
 import com.example.board.dto.boardDTO.response.BoardCreateResponse;
@@ -23,7 +24,9 @@ import com.example.board.dto.boardDTO.response.BoardUpdateResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteDetailResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteMyResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteResultResponse;
+import com.example.board.dto.boardDTO.response.BoardVoteUpdateResponse;
 import com.example.board.exception.BadRequestException;
+import com.example.board.exception.ConflictException;
 import com.example.board.exception.ErrorCode;
 import com.example.board.exception.ForbiddenException;
 import com.example.board.exception.NotFoundException;
@@ -249,6 +252,41 @@ public class BoardService {
                 .orElseGet(() -> new BoardLikeResponse(false, board.getNumberOfLikes()));
     }
 
+    @Transactional
+    public BoardVoteUpdateResponse vote(
+            Long boardId,
+            BoardVoteRequest request,
+            CustomUserPrincipal principal
+    ) {
+        // 투표 단위로 요청을 직렬화하여 같은 사용자의 동시 최초 투표가 중복 INSERT되는 것을 막는다.
+        BoardVote vote = getActiveVoteWithWriteLock(boardId);
+        LocalDateTime now = LocalDateTime.now();
+        if (!vote.isOpen(now)) {
+            throw new ConflictException(ErrorCode.BOARD_VOTE_CLOSED);
+        }
+
+        User voter = getActiveUser(principal.getUserId());
+        BoardVoteResponse myResponse = boardVoteResponseRepository
+                .findByBoardVoteIdAndVoterId(vote.getId(), voter.getId())
+                .map(response -> updateVoteResponse(response, request.leftScore(), now))
+                .orElseGet(() -> boardVoteResponseRepository.save(
+                        BoardVoteResponse.create(vote, voter, request.leftScore(), now)
+                ));
+
+        // JPQL 집계 쿼리가 실행되기 전에 변경 내용이 자동 flush되어 최신 결과가 계산된다.
+        BoardVoteAggregateProjection aggregate = boardVoteResponseRepository
+                .findAggregateByBoardVoteId(vote.getId());
+
+        return new BoardVoteUpdateResponse(
+                vote.getId(),
+                vote.getStatus(now),
+                vote.getEndsAt(),
+                aggregate.getTotalVoteCount(),
+                createVoteResult(aggregate),
+                BoardVoteMyResponse.from(myResponse)
+        );
+    }
+
     private Board getOwnedBoardWithWriteLock(Long boardId, Long userId) {       //비관적 Lock을 사용해 Transaction 내에 위치해야 하지만 이 메소드는 다른 Transaction 내에서만 호출되어 따로 Transaction을 걸 필요가 없다.
         Board board = getActiveBoardWithWriteLock(boardId);
         if (!board.getAuthor().getId().equals(userId)) {
@@ -260,6 +298,25 @@ public class BoardService {
     private Board getActiveBoardWithWriteLock(Long boardId) {
         return boardRepository.findActiveBoardWithWriteLock(boardId)
                 .orElseThrow(() -> new NotFoundException(ErrorCode.BOARD_NOT_FOUND));
+    }
+
+    private BoardVote getActiveVoteWithWriteLock(Long boardId) {
+        return boardVoteRepository.findByActiveBoardIdWithWriteLock(boardId)
+                .orElseThrow(() -> boardRepository.existsByIdAndIsDeletedFalse(boardId)
+                        ? new NotFoundException(ErrorCode.BOARD_VOTE_NOT_FOUND)
+                        : new NotFoundException(ErrorCode.BOARD_NOT_FOUND));
+    }
+
+    private BoardVoteResponse updateVoteResponse(
+            BoardVoteResponse response,
+            int requestedLeftScore,
+            LocalDateTime updatedAt
+    ) {
+        // 같은 값을 다시 보낸 경우 수정 시각도 바꾸지 않아 요청을 완전히 멱등하게 처리한다.
+        if (response.getLeftScore() != requestedLeftScore) {
+            response.changeLeftScore(requestedLeftScore, updatedAt);
+        }
+        return response;
     }
 
     private User getActiveUser(Long userId) {

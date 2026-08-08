@@ -86,7 +86,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/boards",
                                 "/boards/*",
-                                "/boards/*/comments").permitAll()
+                                "/boards/*/comments",
+                                "/boards/*/vote/result").permitAll()
                         .requestMatchers("/h2-console/**").permitAll() //h2 관련 경로 인증 불필요
                         .requestMatchers("/admin/**").hasRole("ADMIN")        //추후 생길 ADMIN관련 경로는 ADMIN(ROLE_ADMIN)권한 필요
                         .anyRequest().authenticated()                           //나머지는 인증이 필ㅇ

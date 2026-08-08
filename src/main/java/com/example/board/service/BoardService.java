@@ -24,6 +24,7 @@ import com.example.board.dto.boardDTO.response.BoardUpdateResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteDetailResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteMyResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteResultResponse;
+import com.example.board.dto.boardDTO.response.BoardVoteResultLookupResponse;
 import com.example.board.dto.boardDTO.response.BoardVoteUpdateResponse;
 import com.example.board.exception.BadRequestException;
 import com.example.board.exception.ConflictException;
@@ -287,6 +288,19 @@ public class BoardService {
         );
     }
 
+    public BoardVoteResultLookupResponse getVoteResult(Long boardId) {
+        // 결과 조회는 상태를 변경하지 않으므로 일반 조회를 사용하고 투표 제출을 막는 락을 걸지 않는다.
+        BoardVote vote = getActiveVote(boardId);
+        BoardVoteAggregateProjection aggregate = boardVoteResponseRepository
+                .findAggregateByBoardVoteId(vote.getId());
+
+        return new BoardVoteResultLookupResponse(
+                vote.getId(),
+                aggregate.getTotalVoteCount(),
+                createVoteResult(aggregate)
+        );
+    }
+
     private Board getOwnedBoardWithWriteLock(Long boardId, Long userId) {       //비관적 Lock을 사용해 Transaction 내에 위치해야 하지만 이 메소드는 다른 Transaction 내에서만 호출되어 따로 Transaction을 걸 필요가 없다.
         Board board = getActiveBoardWithWriteLock(boardId);
         if (!board.getAuthor().getId().equals(userId)) {
@@ -302,6 +316,13 @@ public class BoardService {
 
     private BoardVote getActiveVoteWithWriteLock(Long boardId) {
         return boardVoteRepository.findByActiveBoardIdWithWriteLock(boardId)
+                .orElseThrow(() -> boardRepository.existsByIdAndIsDeletedFalse(boardId)
+                        ? new NotFoundException(ErrorCode.BOARD_VOTE_NOT_FOUND)
+                        : new NotFoundException(ErrorCode.BOARD_NOT_FOUND));
+    }
+
+    private BoardVote getActiveVote(Long boardId) {
+        return boardVoteRepository.findByActiveBoardId(boardId)
                 .orElseThrow(() -> boardRepository.existsByIdAndIsDeletedFalse(boardId)
                         ? new NotFoundException(ErrorCode.BOARD_VOTE_NOT_FOUND)
                         : new NotFoundException(ErrorCode.BOARD_NOT_FOUND));

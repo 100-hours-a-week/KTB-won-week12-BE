@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -196,6 +197,66 @@ class BoardVoteApiIntegrationTest {
         boardRepository.saveAndFlush(board);
 
         vote(author, 5)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("BOARD_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("미인증 사용자도 응답이 없는 투표 결과를 0건과 null로 조회한다.")
+    void anonymousUserGetsEmptyVoteResult() throws Exception {
+        BoardVote vote = saveOpenVote();
+
+        mockMvc.perform(get("/boards/{boardId}/vote/result", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("BOARD_VOTE_RESULT"))
+                .andExpect(jsonPath("$.data.voteId").value(vote.getId()))
+                .andExpect(jsonPath("$.data.totalVoteCount").value(0))
+                .andExpect(jsonPath("$.data.result").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("미인증 사용자도 명시적으로 요청하면 현재 집계 결과를 조회한다.")
+    void anonymousUserGetsAggregateResult() throws Exception {
+        saveOpenVote();
+        User otherUser = saveUser("결과투표자", "result-voter@example.com");
+        vote(author, 4).andExpect(status().isOk());
+        vote(otherUser, 5).andExpect(status().isOk());
+
+        mockMvc.perform(get("/boards/{boardId}/vote/result", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalVoteCount").value(2))
+                .andExpect(jsonPath("$.data.result.leftScore").value(5))
+                .andExpect(jsonPath("$.data.result.rightScore").value(5));
+    }
+
+    @Test
+    @DisplayName("종료된 투표 결과는 조회할 수 있지만 투표가 없거나 게시글이 삭제되면 조회할 수 없다.")
+    void getsClosedResultAndRejectsMissingVoteOrDeletedBoard() throws Exception {
+        mockMvc.perform(get("/boards/{boardId}/vote/result", board.getId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("BOARD_VOTE_NOT_FOUND"));
+
+        BoardVote closedVote = boardVoteRepository.saveAndFlush(BoardVote.create(
+                board,
+                "A 차량",
+                "B 차량",
+                1,
+                LocalDateTime.now().minusHours(2)
+        ));
+        responseRepository.saveAndFlush(BoardVoteResponse.create(
+                closedVote,
+                author,
+                7,
+                LocalDateTime.now().minusHours(2)
+        ));
+
+        mockMvc.perform(get("/boards/{boardId}/vote/result", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result.leftScore").value(7));
+
+        board.deleteBoard();
+        boardRepository.saveAndFlush(board);
+        mockMvc.perform(get("/boards/{boardId}/vote/result", board.getId()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("BOARD_NOT_FOUND"));
     }

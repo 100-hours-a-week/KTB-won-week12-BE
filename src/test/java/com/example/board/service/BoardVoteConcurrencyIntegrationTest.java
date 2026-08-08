@@ -9,6 +9,7 @@ import com.example.board.domain.user.UserRole;
 import com.example.board.dto.boardDTO.request.BoardVoteRequest;
 import com.example.board.dto.boardDTO.response.BoardVoteUpdateResponse;
 import com.example.board.repository.BoardRepository;
+import com.example.board.repository.BoardVoteAggregateProjection;
 import com.example.board.repository.BoardVoteRepository;
 import com.example.board.repository.BoardVoteResponseRepository;
 import com.example.board.repository.UserRepository;
@@ -87,11 +88,7 @@ class BoardVoteConcurrencyIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
-        CustomUserPrincipal principal = new CustomUserPrincipal(
-                voter.getId(),
-                voter.getEmail(),
-                "ROLE_USER"
-        );
+        CustomUserPrincipal principal = principalOf(voter);
 
         try {
             Future<BoardVoteUpdateResponse> leftTwo = executor.submit(
@@ -125,6 +122,56 @@ class BoardVoteConcurrencyIntegrationTest {
         assertThat(persistedResponses.getFirst().getLeftScore()).isIn(2, 8);
     }
 
+    @RepeatedTest(3)
+    @DisplayName("서로 다른 사용자의 동시 최초 투표는 각각의 응답 행과 집계에 반영된다.")
+    void concurrentDifferentUsersCreateIndependentResponses() throws Exception {
+        User otherVoter = userRepository.saveAndFlush(new User(
+                "다른투표자",
+                "concurrent-other@example.com",
+                "encoded-password",
+                UserRole.USER
+        ));
+        CustomUserPrincipal firstPrincipal = principalOf(voter);
+        CustomUserPrincipal secondPrincipal = principalOf(otherVoter);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<BoardVoteUpdateResponse> leftTwo = executor.submit(
+                    () -> voteAfterSignal(firstPrincipal, 2, ready, start)
+            );
+            Future<BoardVoteUpdateResponse> leftEight = executor.submit(
+                    () -> voteAfterSignal(secondPrincipal, 8, ready, start)
+            );
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(leftTwo.get(10, TimeUnit.SECONDS).myVote().leftScore()).isEqualTo(2);
+            assertThat(leftEight.get(10, TimeUnit.SECONDS).myVote().leftScore()).isEqualTo(8);
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
+
+        List<BoardVoteResponse> persistedResponses = responseRepository.findAll();
+        BoardVoteAggregateProjection aggregate = responseRepository
+                .findAggregateByBoardVoteId(vote.getId());
+
+        // 사용자 ID가 다르므로 UNIQUE(vote_id, user_id)에 충돌하지 않고 두 행이 모두 유지된다.
+        assertThat(persistedResponses).hasSize(2);
+        assertThat(persistedResponses)
+                .extracting(response -> response.getVoter().getId())
+                .containsExactlyInAnyOrder(voter.getId(), otherVoter.getId());
+        assertThat(persistedResponses)
+                .extracting(BoardVoteResponse::getLeftScore)
+                .containsExactlyInAnyOrder(2, 8);
+        assertThat(aggregate.getTotalVoteCount()).isEqualTo(2);
+        assertThat(aggregate.getAverageLeftScore()).isEqualTo(5.0);
+    }
+
     private BoardVoteUpdateResponse voteAfterSignal(
             CustomUserPrincipal principal,
             int leftScore,
@@ -136,6 +183,10 @@ class BoardVoteConcurrencyIntegrationTest {
             throw new IllegalStateException("동시 투표 시작 신호를 받지 못했습니다.");
         }
         return boardService.vote(board.getId(), new BoardVoteRequest(leftScore), principal);
+    }
+
+    private CustomUserPrincipal principalOf(User user) {
+        return new CustomUserPrincipal(user.getId(), user.getEmail(), "ROLE_USER");
     }
 
     private void clearVoteData() {

@@ -158,6 +158,7 @@ wait_until_healthy() {
   local service="backend-${slot}"
   local container_id
   local health_status
+  local previous_health_status=""
   local deadline=$((SECONDS + 120))
 
   container_id="$(compose --profile "${slot}" ps --all --quiet "${service}")"
@@ -165,6 +166,12 @@ wait_until_healthy() {
 
   while (( SECONDS < deadline )); do
     health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}")"
+
+    # 같은 상태를 반복하지 않고 변화가 있을 때만 남겨 Actions에서 시작 흐름을 확인한다.
+    if [[ "${health_status}" != "${previous_health_status}" ]]; then
+      printf 'backend-%s health status: %s\n' "${slot}" "${health_status}"
+      previous_health_status="${health_status}"
+    fi
 
     case "${health_status}" in
       healthy) return 0 ;;
@@ -175,6 +182,40 @@ wait_until_healthy() {
   done
 
   return 1
+}
+
+capture_slot_diagnostics() {
+  local slot="$1"
+  local service="backend-${slot}"
+  local container_id=""
+  local diagnostics_dir="${RUNTIME_DIR}/diagnostics"
+  local application_log_file="${diagnostics_dir}/backend-last-failure.log"
+
+  printf '\nBackend deployment diagnostics for %s:\n' "${service}" >&2
+  compose --profile "${slot}" ps --all "${service}" >&2 || true
+
+  # 종료 코드, OOM 여부와 curl 기반 Health Check 기록에는 애플리케이션 환경변수가 포함되지 않는다.
+  if container_id="$(compose --profile "${slot}" ps --all --quiet "${service}" 2>/dev/null)" \
+    && [[ -n "${container_id}" ]]; then
+    docker inspect \
+      --format 'state={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}not-configured{{end}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}}' \
+      "${container_id}" >&2 || true
+
+    docker inspect \
+      --format '{{if .State.Health}}{{range .State.Health.Log}}{{println .End "exit=" .ExitCode .Output}}{{end}}{{end}}' \
+      "${container_id}" >&2 || true
+  fi
+
+  # 전체 Spring 로그는 Actions에 노출하지 않고 EC2의 소유자 전용 파일에 마지막 실패분만 보존한다.
+  umask 077
+  mkdir -p -- "${diagnostics_dir}"
+  chmod 700 "${diagnostics_dir}"
+  compose --profile "${slot}" logs --no-color --tail=200 "${service}" \
+    > "${application_log_file}" 2>&1 || true
+  chmod 600 "${application_log_file}"
+
+  printf 'Spring Boot logs were saved securely on EC2: %s\n\n' \
+    "${application_log_file}" >&2
 }
 
 stop_and_remove_slot() {
@@ -268,13 +309,15 @@ fi
 
 printf 'Starting backend slot %s...\n' "${target_slot}"
 if ! compose --profile "${target_slot}" up -d --no-deps "${target_service}"; then
+  capture_slot_diagnostics "${target_slot}"
   stop_and_remove_slot "${target_slot}"
   fail "failed to start backend-${target_slot}."
 fi
 
 if ! wait_until_healthy "${target_slot}"; then
+  capture_slot_diagnostics "${target_slot}"
   stop_and_remove_slot "${target_slot}"
-  fail "backend-${target_slot} did not become healthy within 120 seconds."
+  fail "backend-${target_slot} exited, became unhealthy, or did not become healthy within 120 seconds."
 fi
 
 if [[ "${initial_deployment}" == true ]]; then

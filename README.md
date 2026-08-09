@@ -4,6 +4,8 @@
 
 게시글과 댓글, JWT 인증, 이미지 업로드, 과실 투표를 위한 API를 제공하며 AWS 환경에서 Docker 컨테이너로 운영됩니다.
 
+**서비스 주소:** [http://54.116.236.247](http://54.116.236.247)
+
 ## 주요 기능
 
 - 회원가입, 로그인, 토큰 재발급 및 로그아웃
@@ -172,8 +174,17 @@ java -jar build/libs/app.jar
 
 - [크맵 프론트엔드](https://github.com/100-hours-a-week/KTB-won-week12-FE)
 
+## 프로젝트 문서
+
+- [REST API 명세](https://docs.google.com/spreadsheets/d/1M2tu8_aNEBSc3obwQKn8Dl2Q6GHDzUqjgfviGRjhWrw/edit?usp=sharing)
+- [ERD Cloud](https://www.erdcloud.com/d/fdLYwKdvJPCwmWTEZ) — 추후 추가될 기능의 테이블과 설계도 포함되어 있습니다.
+
 ## 향후 개선 사항
 
 - Redis 기반 Refresh Token 관리
 - Redis를 활용한 HOT 게시글 및 명예의 전당 기능
 - 장애 발생 시 이전 이미지로 전환하는 롤백 절차 자동화
+
+## 시연 영상
+
+- [크맵 서비스 시연 영상](https://youtu.be/eyrH8KP6P98)

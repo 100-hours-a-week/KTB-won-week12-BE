@@ -150,18 +150,19 @@ public class CommentService {
             LocalDateTime createdAt,
             Long requesterId
     ) {
+        User author = comment.getAuthor();
+        // 탈퇴 회원은 기본 프로필을 사용하므로 기존 S3 Object Key의 조회 URL을 만들지 않는다.
+        String profileImageUrl = Boolean.TRUE.equals(author.getIsDeleted())
+                ? null
+                : profileImageStorageService.createDownloadUrl(author.getProfileImageObjectKey());
+
         return new CommentResponse(
                 comment.getId(),
                 latestRecord.getContent(),
-                CommentAuthorResponse.from(
-                        comment.getAuthor(),
-                        profileImageStorageService.createDownloadUrl(
-                                comment.getAuthor().getProfileImageObjectKey()
-                        )
-                ),
+                CommentAuthorResponse.from(author, profileImageUrl),
                 createdAt,
                 latestRecord.getRegistDate(),
-                comment.getAuthor().getId().equals(requesterId)
+                author.getId().equals(requesterId)
         );
     }
 

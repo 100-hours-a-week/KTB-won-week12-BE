@@ -34,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -188,6 +190,27 @@ class CommentApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].author.profileImage")
                         .value("https://s3.example/profile"));
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원의 댓글은 유지하되 작성자 정보와 프로필 이미지를 익명화한다.")
+    void commentListAnonymizesDeletedAuthor() throws Exception {
+        String objectKey = "profiles/" + otherUser.getId() + "/deleted-comment-author.png";
+        otherUser.changeProfileImageObjectKey(objectKey);
+        Comment comment = saveComment("탈퇴 회원 댓글", otherUser);
+        otherUser.deleteUser("테스트 탈퇴");
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(get("/boards/{boardId}/comments", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].commentId").value(comment.getId()))
+                .andExpect(jsonPath("$.data.content[0].author.userId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].author.nickname").value("삭제된 사용자"))
+                .andExpect(jsonPath("$.data.content[0].author.profileImage").doesNotExist());
+
+        // 탈퇴 전에 저장된 Object Key는 댓글 목록에서도 Presigned URL로 변환하지 않는다.
+        verify(profileImageStorageService, never()).createDownloadUrl(objectKey);
     }
 
     @Test

@@ -389,6 +389,10 @@ public class BoardService {
     }
 
     private BoardAuthorResponse toAuthorResponse(User author) {
+        // 탈퇴 회원은 기본 프로필을 사용하므로 만료되는 S3 조회 URL도 발급하지 않는다.
+        if (Boolean.TRUE.equals(author.getIsDeleted())) {
+            return BoardAuthorResponse.from(author, null);
+        }
         // DB에는 Object Key를 유지하고 외부 응답을 만들 때만 만료 시간이 있는 조회 URL로 변환한다.
         return BoardAuthorResponse.from(
                 author,

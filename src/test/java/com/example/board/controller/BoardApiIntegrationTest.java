@@ -40,6 +40,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -325,6 +327,33 @@ class BoardApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.author.profileImage")
                         .value("https://s3.example/profile"));
+    }
+
+    @Test
+    @DisplayName("탈퇴 회원의 게시글은 유지하되 작성자 정보와 프로필 이미지를 익명화한다.")
+    void boardReadsAnonymizeDeletedAuthor() throws Exception {
+        String objectKey = "profiles/" + author.getId() + "/deleted-profile.png";
+        author.changeProfileImageObjectKey(objectKey);
+        Board board = saveBoard("탈퇴 회원 게시글");
+        author.deleteUser("테스트 탈퇴");
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(get("/boards"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].boardId").value(board.getId()))
+                .andExpect(jsonPath("$.data.content[0].author.userId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].author.nickname").value("삭제된 사용자"))
+                .andExpect(jsonPath("$.data.content[0].author.profileImage").doesNotExist());
+
+        mockMvc.perform(get("/boards/{boardId}", board.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.author.userId").doesNotExist())
+                .andExpect(jsonPath("$.data.author.nickname").value("삭제된 사용자"))
+                .andExpect(jsonPath("$.data.author.profileImage").doesNotExist());
+
+        // 탈퇴 전에 저장된 Object Key가 있어도 외부에 노출할 Presigned URL을 만들지 않는다.
+        verify(profileImageStorageService, never()).createDownloadUrl(objectKey);
     }
 
     @Test

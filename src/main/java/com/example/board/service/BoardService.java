@@ -7,6 +7,7 @@ import com.example.board.domain.board.BoardLikeRecord;
 import com.example.board.domain.board.BoardViewRecord;
 import com.example.board.domain.board.BoardVote;
 import com.example.board.domain.board.BoardVoteResponse;
+import com.example.board.domain.board.BoardVoteStatus;
 import com.example.board.domain.board.BoardImage;
 import com.example.board.domain.board.BoardImageKeys;
 import com.example.board.domain.user.User;
@@ -401,22 +402,23 @@ public class BoardService {
                     // COUNT와 AVG만 조회하여 응답 수와 관계없이 고정된 한 번의 집계 쿼리를 사용한다.
                     BoardVoteAggregateProjection aggregate = boardVoteResponseRepository
                             .findAggregateByBoardVoteId(vote.getId());
+                    BoardVoteStatus status = vote.getStatus(now);
                     BoardVoteResponse myResponse = viewer == null
                             ? null
                             : boardVoteResponseRepository
                                     .findByBoardVoteIdAndVoterId(vote.getId(), viewer.getId())
                                     .orElse(null);
 
-                    // 상세 API에서는 참여자에게만 결과를 노출하고 비참여자는 별도 결과 API를 사용한다.
-                    BoardVoteResultResponse result = myResponse == null
-                            ? null
-                            : createVoteResult(aggregate);
+                    // 진행 중에는 참여자만 즉시 결과를 보고, 종료 후에는 참여 여부와 관계없이 결과를 공개한다.
+                    BoardVoteResultResponse result = status == BoardVoteStatus.CLOSED || myResponse != null
+                            ? createVoteResult(aggregate)
+                            : null;
 
                     return new BoardVoteDetailResponse(
                             vote.getId(),
                             vote.getLeftLabel(),
                             vote.getRightLabel(),
-                            vote.getStatus(now),
+                            status,
                             vote.getStartedAt(),
                             vote.getEndsAt(),
                             aggregate.getTotalVoteCount(),

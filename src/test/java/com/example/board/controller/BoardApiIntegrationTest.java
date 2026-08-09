@@ -398,7 +398,7 @@ class BoardApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("종료된 투표는 상세 응답에서 CLOSED 상태로 반환한다.")
+    @DisplayName("종료된 투표는 비참여자에게도 상세 응답에서 집계 결과를 바로 공개한다.")
     void boardDetailReturnsClosedVoteStatus() throws Exception {
         Board board = saveBoard("종료된 투표 게시글");
         BoardVote vote = BoardVote.create(
@@ -409,10 +409,21 @@ class BoardApiIntegrationTest {
                 LocalDateTime.now().minusHours(2)
         );
         boardVoteRepository.saveAndFlush(vote);
+        User voter = saveUser("종료투표자", "closed-detail-voter@example.com");
+        boardVoteResponseRepository.saveAndFlush(BoardVoteResponse.create(
+                vote,
+                voter,
+                7,
+                LocalDateTime.now().minusHours(2)
+        ));
 
         mockMvc.perform(get("/boards/{boardId}", board.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.vote.status").value("CLOSED"));
+                .andExpect(jsonPath("$.data.vote.status").value("CLOSED"))
+                .andExpect(jsonPath("$.data.vote.totalVoteCount").value(1))
+                .andExpect(jsonPath("$.data.vote.result.leftScore").value(7))
+                .andExpect(jsonPath("$.data.vote.result.rightScore").value(3))
+                .andExpect(jsonPath("$.data.vote.myVote").doesNotExist());
     }
 
     @Test
